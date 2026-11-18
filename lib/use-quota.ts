@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRpc } from "@get-bb/plugin-sdk/app";
-import type { Quota, rpcContract } from "../server";
+import type { Quota, QuotaLocation, rpcContract } from "../server";
 
 // The composer mounts a fresh instance for each Codex thread.
-export function useQuota(threadId: string, intervalSeconds = 120) {
+export function useQuota(location: QuotaLocation, intervalSeconds = 120) {
   const rpc = useRpc<typeof rpcContract>();
   const [data, setData] = useState<Quota | null>(null);
   const [now, setNow] = useState(Date.now);
@@ -16,7 +16,7 @@ export function useQuota(threadId: string, intervalSeconds = 120) {
     pending.current = request;
     let result: Quota;
     try {
-      result = await rpc.call("quota", { threadId, refresh });
+      result = await rpc.call("quota", { ...location, refresh });
     } catch {
       result = { account: null, error: "refresh_failed" };
     }
@@ -24,7 +24,7 @@ export function useQuota(threadId: string, intervalSeconds = 120) {
     pending.current = null;
     setData(result);
     setNow(Date.now());
-  }, [rpc, threadId]);
+  }, [rpc, location]);
 
   useEffect(() => {
     void load();

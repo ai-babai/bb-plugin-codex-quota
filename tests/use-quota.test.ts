@@ -5,6 +5,8 @@ import { useQuota } from "../lib/use-quota";
 import type { Quota } from "../server";
 
 const rpc = vi.hoisted(() => ({ call: vi.fn() }));
+const location = { threadId: "thread-a" };
+
 vi.mock("@get-bb/plugin-sdk/app", () => ({ useRpc: () => rpc }));
 
 afterEach(() => {
@@ -19,7 +21,7 @@ it("keeps the manually refreshed quota when an older read finishes last", async 
   rpc.call.mockReturnValueOnce(new Promise<Quota>(resolve => { finishPoll = resolve; }));
   const fresh: Quota = { account: { plan: "Plus", observedAt: 500, windows: [] }, error: null };
   rpc.call.mockResolvedValueOnce(fresh);
-  const { result } = renderHook(() => useQuota("thread-a"));
+  const { result } = renderHook(() => useQuota(location));
   await act(() => result.current.load(true));
   expect(rpc.call).toHaveBeenNthCalledWith(2, "quota", { threadId: "thread-a", refresh: true });
   await act(async () => { finishPoll({ account: null, error: "unavailable" }); });
@@ -31,7 +33,7 @@ it("reschedules polling when the interval changes and stops polling at zero", as
   const quota: Quota = { account: { plan: "Plus", observedAt: 500, windows: [] }, error: null };
   rpc.call.mockResolvedValue(quota);
   const { rerender } = renderHook(
-    ({ intervalSeconds }: { intervalSeconds?: number }) => useQuota("thread-a", intervalSeconds),
+    ({ intervalSeconds }: { intervalSeconds?: number }) => useQuota(location, intervalSeconds),
     { initialProps: {} },
   );
   const advance = (milliseconds: number) => act(async () => {
@@ -66,7 +68,7 @@ it("skips scheduled reads while hidden and resumes with a cached read", async ()
   vi.useFakeTimers();
   const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(true);
   rpc.call.mockResolvedValue({ account: null, error: "unavailable" } satisfies Quota);
-  renderHook(() => useQuota("thread-a", 2));
+  renderHook(() => useQuota(location, 2));
 
   await act(() => vi.advanceTimersByTimeAsync(4_000));
   expect(rpc.call).toHaveBeenCalledExactlyOnceWith("quota", { threadId: "thread-a", refresh: false });

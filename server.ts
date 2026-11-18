@@ -12,9 +12,15 @@ const quotaSchema = z.object({
 });
 export type Quota = z.infer<typeof quotaSchema>;
 export type QuotaWindow = z.infer<typeof windowSchema>;
+const locationSchema = z.union([
+  z.object({ threadId: z.string().min(1) }),
+  z.object({ environmentId: z.string().min(1) }),
+  z.object({ hostId: z.string().min(1) }),
+]);
+export type QuotaLocation = z.infer<typeof locationSchema>;
 export const rpcContract = defineRpcContract({
-  availableResets: { input: z.object({ threadId: z.string().min(1), includeExpiries: z.boolean().optional() }), output: resetContract.availableResets.output },
-  quota: { input: z.object({ threadId: z.string().min(1), refresh: z.boolean().default(false) }), output: quotaSchema },
+  availableResets: { input: locationSchema.and(z.object({ includeExpiries: z.boolean().optional() })), output: resetContract.availableResets.output },
+  quota: { input: locationSchema.and(z.object({ refresh: z.boolean().default(false) })), output: quotaSchema },
 });
 const resourcesSchema = z.object({ resources: z.array(z.object({
   id: z.string(), providerId: z.string(), accountKey: z.string().nullish(), scope: z.object({ kind: z.string(), hostId: z.string().optional() }),
@@ -30,10 +36,16 @@ const providerUsageSchema = z.object({ observedAt: z.number().nullable(), usage:
 
 export default function plugin(bb: BbPluginApi) {
   const host = bb.hosts.experimental_client({ contract: resetContract });
-  async function findResource(threadId: string) {
-    const thread = await bb.sdk.threads.get({ threadId });
+  async function resolveHost(location: QuotaLocation) {
+    if ("hostId" in location) return location.hostId;
+    if ("environmentId" in location) return (await bb.sdk.environments.get({ environmentId: location.environmentId })).hostId;
+    const thread = await bb.sdk.threads.get({ threadId: location.threadId });
     if (thread.providerId !== "codex" || !thread.environmentId) return null;
-    const { hostId } = await bb.sdk.environments.get({ environmentId: thread.environmentId });
+    return (await bb.sdk.environments.get({ environmentId: thread.environmentId })).hostId;
+  }
+  async function findResource(location: QuotaLocation) {
+    const hostId = await resolveHost(location);
+    if (!hostId) return null;
     const inventory = await bb.sdk.plugins.callRpc({ pluginId: "provider-codex",
       method: "provider-usage.v1.listResources", input: {}, outputSchema: resourcesSchema });
     const resource = inventory.resources.find(r => r.providerId === "codex" && r.scope.kind === "host" && r.scope.hostId === hostId);
@@ -56,9 +68,9 @@ export default function plugin(bb: BbPluginApi) {
     },
   });
   bb.rpc.register(rpcContract, {
-    availableResets: async ({ threadId, includeExpiries = false }, context) => {
+    availableResets: async ({ includeExpiries = false, ...location }, context) => {
       try {
-        const target = await findResource(threadId);
+        const target = await findResource(location);
         if (!target?.resource.accountKey) return { count: null };
         return await host.call("availableResets", { accountKey: target.resource.accountKey, includeExpiries },
           { hostId: target.hostId, signal: context.experimental_signal });
@@ -66,9 +78,9 @@ export default function plugin(bb: BbPluginApi) {
         return { count: null };
       }
     },
-    quota: async ({ threadId, refresh }): Promise<Quota> => {
+    quota: async ({ refresh, ...location }): Promise<Quota> => {
       try {
-        const target = await findResource(threadId);
+        const target = await findResource(location);
         const resource = target?.resource;
         if (!resource) return { account: null, error: "unavailable" };
         const result = await bb.sdk.plugins.callRpc({ pluginId: "provider-codex",

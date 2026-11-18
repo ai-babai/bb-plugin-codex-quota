@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { ComposerSelection } from "@get-bb/plugin-sdk/app";
 import type { ComponentType } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { Quota, QuotaWindow } from "../server";
@@ -11,7 +12,7 @@ const { rpc, customize, register, settings, composer } = vi.hoisted(() => ({
   customize: vi.fn(),
   register: vi.fn(),
   settings: { values: { language: "en", refreshIntervalSeconds: 0, refreshOnHover: true, refreshOnPress: true } },
-  composer: { scope: { kind: "thread", threadId: "example" }, selection: { providerId: "codex" } },
+  composer: { scope: { kind: "thread", threadId: "example" }, selection: { providerId: "codex" } as ComposerSelection },
 }));
 vi.mock("@get-bb/plugin-sdk/app", () => ({
   definePluginApp: (initialize: (app: object) => void) => initialize({
@@ -24,7 +25,7 @@ vi.mock("@get-bb/plugin-sdk/app", () => ({
 }));
 import "../app";
 
-const Disk: ComponentType = customize.mock.calls[0][0].banners[0].component;
+const Disk: ComponentType = customize.mock.calls.find(([registration]) => registration.scopes.includes("thread"))![0].banners[0].component;
 const mount: typeof mountUsageFooter = register.mock.calls[0][0].mount;
 let dispose: () => void;
 
@@ -61,7 +62,7 @@ beforeEach(() => {
   Object.assign(settings.values, { language: "en", refreshOnHover: true, refreshOnPress: true });
 });
 
-afterEach(() => { cleanup(); dispose(); });
+afterEach(() => { cleanup(); dispose?.(); });
 
 it("places the ring beside context, shows the tightest limit and each reported reset", async () => {
   respondWith(quota([windowData("five-hour", 78, 3), windowData("weekly", 46, 52),
@@ -106,5 +107,35 @@ it("leaves other providers' composers alone", () => {
   composer.selection.providerId = "other";
   showDisk();
   expect(screen.queryByRole("button", { name: /Codex/ })).toBeNull();
+  expect(rpc.call).not.toHaveBeenCalled();
+});
+
+it("shows the selected machine’s limits before the first prompt and clears them when the selection changes", async () => {
+  const DraftDisk: ComponentType = customize.mock.calls.find(([r]) => r.scopes.includes("new-thread"))![0].actions[0].component;
+  const environment = (hostId: string) => ({ type: "provider", environmentProviderId: "project-checkout",
+    machine: { type: "existing", hostId }, inputs: null } as const);
+  respondWith(quota([windowData("weekly", 65, 52)]));
+  composer.selection.environment = environment("host-a");
+  const view = render(<DraftDisk />);
+  await screen.findByRole("button", { name: /65% left/ });
+  expect(rpc.call).toHaveBeenCalledWith("quota", { hostId: "host-a", refresh: false });
+  composer.selection.environment = { type: "reuse", environmentId: "env-b" };
+  respondWith(quota([windowData("weekly", 20, 52)]));
+  view.rerender(<DraftDisk />);
+  expect(screen.queryByRole("button", { name: /65% left/ })).toBeNull();
+  await screen.findByRole("button", { name: /20% left/ });
+  expect(rpc.call).toHaveBeenCalledWith("quota", { environmentId: "env-b", refresh: false });
+  composer.selection.environment = { type: "host", hostId: "host-c", workspace: { type: "personal" } };
+  view.rerender(<DraftDisk />);
+  await screen.findByRole("button", { name: /20% left/ });
+  expect(rpc.call).toHaveBeenCalledWith("quota", { hostId: "host-c", refresh: false });
+  rpc.call.mockClear();
+  composer.selection.environment = { type: "project-default" };
+  view.rerender(<DraftDisk />);
+  expect(screen.queryByRole("button")).toBeNull();
+  composer.selection.environment = environment("host-a");
+  composer.selection.providerId = "other";
+  view.rerender(<DraftDisk />);
+  expect(screen.queryByRole("button")).toBeNull();
   expect(rpc.call).not.toHaveBeenCalled();
 });

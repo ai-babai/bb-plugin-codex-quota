@@ -43,7 +43,7 @@ function requestPlacement() {
 }
 
 it("follows the context control across footer changes and cleans up on disposal", () => {
-  const { shell, origin, footer, context } = makeComposer();
+  const { shell, origin, footer, context, submitGroup } = makeComposer();
   document.body.append(shell);
   const onPlaced = vi.fn();
   const dispose = mountFooter();
@@ -57,6 +57,9 @@ it("follows the context control across footer changes and cleans up on disposal"
     context.remove();
     requestPlacement();
     expect(footer.querySelector(anchorSelector)).toBeNull();
+    expect(submitGroup.previousElementSibling).toBe(anchor);
+    submitGroup.remove();
+    requestPlacement();
     expect(onPlaced).toHaveBeenLastCalledWith(expect.objectContaining({ detail: { origin, target: null } }));
 
     footer.append(context);
@@ -73,9 +76,9 @@ it("follows the context control across footer changes and cleans up on disposal"
   }
 });
 
-it("waits for the local context control, follows its movement, and removes the orphaned anchor", async () => {
+it("uses the local send controls until context appears, follows it, and removes the orphaned anchor", async () => {
   const layout = document.createElement("div");
-  const { shell, footer, context, origin } = makeComposer();
+  const { shell, footer, context, origin, submitGroup } = makeComposer();
   const other = makeComposer({ showQuota: false });
   context.remove();
   context.removeAttribute("aria-label");
@@ -84,7 +87,7 @@ it("waits for the local context control, follows its movement, and removes the o
   document.body.append(layout);
   const dispose = mountFooter();
   try {
-    expect(layout.querySelector(anchorSelector)).toBeNull();
+    expect(submitGroup.previousElementSibling?.matches(anchorSelector)).toBe(true);
 
     footer.append(context);
     const anchor = await vi.waitFor(() => {

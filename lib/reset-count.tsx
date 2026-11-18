@@ -1,45 +1,45 @@
 import { useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactElement } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { experimental_Icon as Icon, useRpc } from "@get-bb/plugin-sdk/app";
-import type { Quota, rpcContract } from "../server";
+import type { Quota, QuotaLocation, rpcContract } from "../server";
 import type { getQuotaFormat } from "./format";
 
 type ResetSummary = { count: number | null; expiries?: (number | null)[] };
-type ResetProps = { threadId: string; quota: Quota | null; count: number | null | undefined; format: ReturnType<typeof getQuotaFormat> };
+type ResetProps = { location: QuotaLocation; quota: Quota | null; count: number | null | undefined; format: ReturnType<typeof getQuotaFormat> };
 
 // Reuse each read while the quota snapshot is current, including across hovers.
 type ResetRead = { pending: Promise<ResetSummary>; value?: ResetSummary };
 const counts = new WeakMap<Quota, ResetRead>();
 const details = new WeakMap<Quota, ResetRead>();
 
-function useResetSummary(threadId: string, quota: Quota | null, { includeExpiries, enabled }: {
+function useResetSummary(location: QuotaLocation, quota: Quota | null, { includeExpiries, enabled }: {
   includeExpiries: boolean;
   enabled?: boolean;
 }) {
   const rpc = useRpc<typeof rpcContract>();
   const cache = includeExpiries ? details : counts;
   const plan = quota?.account?.plan;
-  const [last, setLast] = useState<{ threadId: string; plan?: string; value: ResetSummary }>();
+  const [last, setLast] = useState<{ location: QuotaLocation; plan?: string; value: ResetSummary }>();
   useEffect(() => {
     if (enabled === false || !quota) return;
     let active = true;
     let read = cache.get(quota);
     if (!read) {
-      const pending = rpc.call("availableResets", { threadId, includeExpiries }).catch(() => ({ count: null }));
+      const pending = rpc.call("availableResets", { ...location, includeExpiries }).catch(() => ({ count: null }));
       const entry: ResetRead = { pending };
       void pending.then(value => { entry.value = value; });
       cache.set(quota, entry);
       read = entry;
     }
-    void read.pending.then(value => { if (active) setLast({ threadId, plan, value }); });
+    void read.pending.then(value => { if (active) setLast({ location, plan, value }); });
     return () => { active = false; };
-  }, [rpc, threadId, quota, plan, includeExpiries, enabled, cache]);
+  }, [rpc, location, quota, plan, includeExpiries, enabled, cache]);
   if (!quota) return undefined;
-  return cache.get(quota)?.value ?? (last?.threadId === threadId && last.plan === plan ? last.value : undefined);
+  return cache.get(quota)?.value ?? (last?.location === location && last.plan === plan ? last.value : undefined);
 }
 
-export function useAvailableResetCount(threadId: string, quota: Quota | null, fresh: boolean) {
-  const summary = useResetSummary(threadId, fresh ? quota : null, { includeExpiries: false });
+export function useAvailableResetCount(location: QuotaLocation, quota: Quota | null, fresh: boolean) {
+  const summary = useResetSummary(location, fresh ? quota : null, { includeExpiries: false });
   if (quota && (!quota.account || !fresh)) return null;
   return summary?.count;
 }
@@ -124,12 +124,12 @@ function keepFocus(event: Event) {
   event.preventDefault();
 }
 
-function ResetDetails({ threadId, quota, format, badge, label }: Omit<ResetProps, "count"> & {
+function ResetDetails({ location, quota, format, badge, label }: Omit<ResetProps, "count"> & {
   badge: ReactElement;
   label: string;
 }) {
   const interaction = useResetDetailsInteraction();
-  const summary = useResetSummary(threadId, quota, {
+  const summary = useResetSummary(location, quota, {
     includeExpiries: true,
     enabled: interaction.active,
   });
@@ -150,13 +150,13 @@ function ResetDetails({ threadId, quota, format, badge, label }: Omit<ResetProps
   </Popover.Root>;
 }
 
-export function ResetCount({ count, threadId, quota, format }: ResetProps) {
+export function ResetCount({ count, location, quota, format }: ResetProps) {
   if (count === null) return null;
   const badge = <span className="inline-flex h-4 min-w-10 shrink-0 items-center justify-center gap-1 rounded-full bg-muted px-1.5 text-muted-foreground tabular-nums group-focus-visible:ring-2 group-focus-visible:ring-ring">
     <Icon name="Zap" aria-hidden="true" className="size-3.5" />
     <span className="sr-only">{format.text.manualResets}: </span>{count ?? "–"}
   </span>;
   if (!count) return <span className={`${badgeContainer} pointer-events-none`}>{badge}</span>;
-  return <ResetDetails threadId={threadId} quota={quota} format={format} badge={badge}
+  return <ResetDetails location={location} quota={quota} format={format} badge={badge}
     label={`${format.text.manualResets}: ${count}`} />;
 }

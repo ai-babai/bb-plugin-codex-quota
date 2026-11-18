@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { useMemo } from "react";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { getQuotaFormat } from "../lib/format";
@@ -36,8 +37,9 @@ function quotaSnapshot(observedAt: number, plan = "Pro"): Quota {
 function QuotaCard({ quota, thread = threadId, fresh = true, open = true }: {
   quota: Quota; thread?: string; fresh?: boolean; open?: boolean;
 }) {
-  const count = useAvailableResetCount(thread, quota, fresh);
-  return open ? <ResetCount threadId={thread} quota={quota} format={format} count={count} /> : null;
+  const location = useMemo(() => ({ threadId: thread }), [thread]);
+  const count = useAvailableResetCount(location, quota, fresh);
+  return open ? <ResetCount location={location} quota={quota} format={format} count={count} /> : null;
 }
 
 function serveSummary(response: Promise<ResetSummary>) {

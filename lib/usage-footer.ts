@@ -8,9 +8,9 @@ function findPlacementTarget(origin: HTMLElement) {
   const context = composer.querySelector<HTMLElement>(
     ':scope > [data-follow-up-composer-footer] :is(button[aria-label^="Context window"], button[title^="Context window"])',
   );
-  // In the collapsed mobile composer BB keeps the submit group and omits the footer.
+  // Before a context reading exists and in compact layouts, use the same composer’s submit group.
   return context ?? composer.querySelector<HTMLElement>(
-    ':scope > [data-composer-box] form[data-promptbox-compact] [data-promptbox-submit-group]',
+    ':scope > [data-composer-box] form[data-promptbox] [data-promptbox-submit-group]',
   );
 }
 

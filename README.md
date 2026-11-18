@@ -2,7 +2,7 @@
 
 [Русский](README.ru.md)
 
-See how much of your OpenAI Codex subscription quota is left and when each limit resets. In a BB thread, hover over or tap the teal ring beside the context meter. In the compact phone layout, the ring sits beside the send controls.
+See how much of your OpenAI Codex subscription quota is left and when each limit resets. Select Codex and a machine to see your quota before sending the first message. In a BB thread, hover over or tap the teal ring beside the context meter. In the compact phone layout, the ring sits beside the send controls.
 
 **Pro example.** Codex reports one weekly limit. The card shows how much is left and when it resets.
 

@@ -88,6 +88,15 @@ describe("quota RPC", () => {
     expect(getResource).toHaveBeenCalledExactlyOnceWith({ resourceId: resource.id, refresh: true });
   });
 
+  it.each([{ hostId }, { environmentId }])("reads draft quota and resets on its selected machine (%j)", async location => {
+    readHost.mockResolvedValue({ count: 2 });
+    await expect(host.harness.behavior.callRpc("quota", location)).resolves.toMatchObject({ error: null });
+    await expect(host.harness.behavior.callRpc("availableResets", location)).resolves.toEqual({ count: 2 });
+    expect(getThread).not.toHaveBeenCalled();
+    expect(getEnvironment).toHaveBeenCalledTimes("hostId" in location ? 0 : 2);
+    expect(readHost.mock.calls[0][0]).toMatchObject({ hostId });
+  });
+
   it("returns only public quota fields, converts usage to remaining, and defaults refresh to false", async () => {
     await expect(host.harness.behavior.callRpc("quota", { threadId })).resolves.toStrictEqual({
       account: {
