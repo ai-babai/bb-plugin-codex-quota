@@ -39,14 +39,17 @@ function WindowRow({ window, fresh, now, format, resetCount }: {
     </div>
     {untilReset !== null ? <div className="grid gap-1 text-muted-foreground tabular-nums">
       <div className="flex flex-wrap items-baseline justify-between gap-x-2">
-        <span>{text.reset}</span><time dateTime={window.resetsAt!}>{formatDate(window.resetsAt!)}</time>
+        {untilReset > 0 ? <>
+          <span>{text.resetsIn}</span>
+          <span className="ml-auto font-medium text-popover-foreground">{formatCountdown(untilReset)}</span>
+        </> : <span>{text.waiting}</span>}
       </div>
       {timePercent !== null && <div aria-hidden="true" className={trackClass}>
         <div className="h-full rounded-full bg-muted-foreground/50" style={{ width: `${timePercent}%` }} />
       </div>}
       <div className="flex items-center gap-2">
         {resetCount}
-        <span className="ml-auto text-end">{untilReset === 0 ? text.waiting : formatCountdown(untilReset)}</span>
+        <time className="ml-auto text-end" dateTime={window.resetsAt!}>{formatDate(window.resetsAt!)}</time>
       </div>
     </div> : resetCount}
   </div>;

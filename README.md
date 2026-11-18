@@ -17,7 +17,7 @@ With 78% of the five-hour quota and 46% of the weekly quota left, the ring shows
 
 </details>
 
-A lightning bolt beside the countdown shows how many manual resets are available, including zero. Hover over the bolt to see expiry dates. Viewing them never uses a reset. If Codex cannot report the count, the icon stays hidden.
+The lightning bolt at the bottom of the card shows how many manual resets are available, including zero. Hover over the bolt to see expiry dates. Viewing them never uses a reset. If Codex cannot report the count, the icon stays hidden.
 
 A **?** means usage is missing, at least 90 minutes old, or due for a new reading after a reset.
 
