@@ -8,7 +8,7 @@
   },
   "bb": {
     "name": "Codex Quota",
-    "description": "See your remaining Codex subscription quota beside the context meter in BB.",
+    "description": "Track OpenAI Codex usage limits and reset times beside the BB context meter.",
     "branding": {
       "icon": "./assets/icon.svg"
     },
@@ -51,7 +51,7 @@
     "vaul": "^1.1.2",
     "vitest": "^4.1.12"
   },
-  "description": "See your remaining Codex subscription quota beside the context meter in BB.",
+  "description": "Track OpenAI Codex usage limits and reset times beside the BB context meter.",
   "license": "MIT",
   "author": {
     "name": "ai-babai",
