@@ -5,33 +5,44 @@ import type { Quota, rpcContract } from "../server";
 import type { getQuotaFormat } from "./format";
 
 type ResetSummary = { count: number | null; expiries?: (number | null)[] };
-type ResetProps = { threadId: string; quota: Quota; format: ReturnType<typeof getQuotaFormat> };
+type ResetProps = { threadId: string; quota: Quota | null; count: number | null | undefined; format: ReturnType<typeof getQuotaFormat> };
 
 // Reuse each read while the quota snapshot is current, including across hovers.
-const counts = new WeakMap<Quota, Promise<ResetSummary>>();
-const details = new WeakMap<Quota, Promise<ResetSummary>>();
+type ResetRead = { pending: Promise<ResetSummary>; value?: ResetSummary };
+const counts = new WeakMap<Quota, ResetRead>();
+const details = new WeakMap<Quota, ResetRead>();
 
-function useResetSummary(threadId: string, quota: Quota, includeExpiries = false) {
+function useResetSummary(threadId: string, quota: Quota | null, includeExpiries = false, enabled = true) {
   const rpc = useRpc<typeof rpcContract>();
-  const [result, setResult] = useState<{ quota: Quota; summary: ResetSummary } | null>(null);
+  const cache = includeExpiries ? details : counts;
+  const plan = quota?.account?.plan;
+  const [last, setLast] = useState<{ threadId: string; plan?: string; value: ResetSummary }>();
   useEffect(() => {
+    if (!enabled || !quota) return;
     let active = true;
-    const cache = includeExpiries ? details : counts;
     let read = cache.get(quota);
     if (!read) {
-      read = rpc.call("availableResets", { threadId, includeExpiries }).catch(() => ({ count: null }));
-      cache.set(quota, read);
+      const pending = rpc.call("availableResets", { threadId, includeExpiries }).catch(() => ({ count: null }));
+      const entry: ResetRead = { pending };
+      void pending.then(value => { entry.value = value; });
+      cache.set(quota, entry);
+      read = entry;
     }
-    void read.then(summary => { if (active) setResult({ quota, summary }); });
+    void read.pending.then(value => { if (active) setLast({ threadId, plan, value }); });
     return () => { active = false; };
-  }, [rpc, threadId, quota, includeExpiries]);
-  return result?.quota === quota ? result.summary : undefined;
+  }, [rpc, threadId, quota, plan, includeExpiries, enabled, cache]);
+  if (!quota) return undefined;
+  return cache.get(quota)?.value ?? (last?.threadId === threadId && last.plan === plan ? last.value : undefined);
 }
 
-function ResetExpiries({ threadId, quota, format }: ResetProps) {
-  const summary = useResetSummary(threadId, quota, true);
+export function useAvailableResetCount(threadId: string, quota: Quota | null, fresh: boolean) {
+  const summary = useResetSummary(threadId, fresh ? quota : null);
+  if (quota && (!quota.account || !fresh)) return null;
+  return summary?.count;
+}
+
+function ResetExpiries({ summary, format }: { summary: ResetSummary; format: ResetProps["format"] }) {
   const { text } = format;
-  if (!summary) return <>…</>;
   if (summary.count === 0) return <>{text.noResets}</>;
   if (!summary.expiries?.length || summary.count === null) return <>{text.unknownExpiry}</>;
 
@@ -55,22 +66,25 @@ function ResetExpiries({ threadId, quota, format }: ResetProps) {
 }
 
 export function ResetCount(props: ResetProps) {
-  const count = useResetSummary(props.threadId, props.quota)?.count;
-  if (count == null) return null;
-  const badge = <span tabIndex={count > 0 ? 0 : undefined}
-    className="inline-flex w-fit shrink-0 items-center gap-1 rounded-sm text-muted-foreground tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+  const { count } = props;
+  const [open, setOpen] = useState(false);
+  const summary = useResetSummary(props.threadId, props.quota, true, open && count != null && count > 0);
+  if (count === null) return null;
+  const badge = <span tabIndex={count ? 0 : undefined}
+    onPointerLeave={() => { if (!summary) setOpen(false); }}
+    className="ml-auto inline-flex h-4 min-w-10 shrink-0 items-center justify-center gap-1 rounded-full bg-muted px-1.5 text-muted-foreground tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
     <Icon name="Zap" aria-hidden="true" className="size-3.5" />
-    <span className="sr-only">{props.format.text.manualResets}: </span>{count}
+    <span className="sr-only">{props.format.text.manualResets}: </span>{count ?? "–"}
   </span>;
-  if (count === 0) return badge;
+  if (!count) return badge;
   return <Tooltip.Provider delayDuration={150}>
-    <Tooltip.Root>
+    <Tooltip.Root open={open} onOpenChange={setOpen}>
       <Tooltip.Trigger asChild>{badge}</Tooltip.Trigger>
-      <Tooltip.Content side="top" align="start" sideOffset={4} collisionPadding={8}
+      {summary && <Tooltip.Content side="top" align="start" sideOffset={4} collisionPadding={8}
         className="z-50 grid min-w-36 gap-1.5 rounded-md border border-border bg-popover p-2 text-xs text-popover-foreground shadow-md">
         <div className="font-medium">{props.format.text.resets}</div>
-        <ResetExpiries {...props} />
-      </Tooltip.Content>
+        <ResetExpiries summary={summary} format={props.format} />
+      </Tooltip.Content>}
     </Tooltip.Root>
   </Tooltip.Provider>;
 }

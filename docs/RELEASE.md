@@ -32,7 +32,7 @@ The project check typechecks the source and tests, runs behavioral tests,
 builds the BB bundles and verifies the npm archive contents. For a Git release,
 also build the checkout with only production dependencies installed. Check the
 ring in a Codex thread in light and dark themes, including hover, keyboard
-dismissal, Refresh and the saved language.
+dismissal, ring activation to refresh and the saved language.
 
 ## 2. Publish the approved source
 

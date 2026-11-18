@@ -2,7 +2,7 @@ const STALE_AFTER_MS = 90 * 60 * 1000;
 
 const english = {
   title: "Codex subscription", unavailable: "Quota unavailable", loading: "Loading quota…",
-  refresh: "Refresh", refreshing: "Refreshing…", remaining: "left", used: "used",
+  remaining: "left", used: "used",
   manualResets: "Available resets", resets: "Resets", noExpiry: "No expiry", unknownExpiry: "Expiry unavailable", noResets: "No resets left", stale: "outdated", resetsIn: "Resets in", waiting: "Waiting for quota update",
   fiveHour: "5 hours", daily: "Daily", weekly: "Weekly", day: "d", hour: "h", minute: "m",
 };
@@ -10,7 +10,7 @@ const english = {
 const en = quotaFormat("en-US", english);
 const ru = quotaFormat("ru-RU", {
   title: "Подписка Codex", unavailable: "Лимиты недоступны", loading: "Получаем лимиты…",
-  refresh: "Обновить", refreshing: "Обновляем…", remaining: "осталось", used: "использовано",
+  remaining: "осталось", used: "использовано",
   manualResets: "Доступно сбросов", resets: "Сбросы", noExpiry: "Бессрочно", unknownExpiry: "Срок неизвестен", noResets: "Сбросов нет", stale: "устарело", resetsIn: "До сброса", waiting: "Ожидаем обновления квоты",
   fiveHour: "5 часов", daily: "Сутки", weekly: "Неделя", day: "д", hour: "ч", minute: "мин",
 });

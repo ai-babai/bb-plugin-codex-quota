@@ -17,11 +17,11 @@ With 78% of the five-hour quota and 46% of the weekly quota left, the ring shows
 
 </details>
 
-The lightning bolt at the bottom of the card shows how many manual resets are available, including zero. Hover over the bolt to see expiry dates. Viewing them never uses a reset. If Codex cannot report the count, the icon stays hidden.
+The lightning bolt at the top right of the card shows how many manual resets are available, including zero. Hover over the bolt to see expiry dates. Viewing them never uses a reset. If Codex cannot report the count, the icon stays hidden.
 
 A **?** means usage is missing, at least 90 minutes old, or due for a new reading after a reset.
 
-Click the ring to close the card after hovering. Click again to reopen it. Tap the ring or press **Enter** or **Space** with the ring focused to open or close the card. **Esc** closes it. Usage updates every two minutes while the page is visible. **Refresh** requests a new reading.
+Click the ring to close the card after hovering. Click again to reopen it. Tap the ring or press **Enter** or **Space** with the ring focused to open or close the card. **Esc** closes it. By default, usage updates every two minutes while the page is visible. Hover over or press the ring to request a fresh reading immediately.
 
 ## Installation
 
@@ -49,9 +49,19 @@ English is the default. Choose **English** or **Русский** in **Codex Quot
 bb plugin config codex-quota set language ru
 ```
 
+## Refresh settings
+
+Set the interval in seconds. For example, this checks usage every five minutes:
+
+```sh
+bb plugin config codex-quota set refreshIntervalSeconds 300
+```
+
+The default is 120. Set it to `0` to disable the timer. `refreshOnHover` and `refreshOnPress` each accept `true` (default) or `false`. These settings also appear in BB’s plugin configuration.
+
 ## Privacy
 
-Quota windows come from BB’s Codex provider. With the card open, the plugin asks Codex CLI on the thread’s machine for the reset count using `account/rateLimits/read`. Only the count and requested expiry dates reach the UI after the accounts match. Codex handles sign-in. The plugin sends no telemetry.
+Quota windows come from BB’s Codex provider. When a Codex thread loads or its usage updates, the plugin asks Codex CLI on the thread’s machine for the reset count using `account/rateLimits/read`. Only the count and requested expiry dates reach the UI after the accounts match. Codex handles sign-in. The plugin sends no telemetry.
 
 ## Development
 

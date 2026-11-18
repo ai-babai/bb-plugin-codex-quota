@@ -5,15 +5,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QuotaPopover } from "../lib/quota-popover";
 
 const label = "Codex quota";
-const refreshButton = { name: "Refresh" };
+const detailsButton = { name: "Details" };
 
 function renderQuota() {
-  const refresh = vi.fn();
+  const details = vi.fn();
+  const activate = vi.fn();
   render(
     <>
       <textarea aria-label="Message" />
-      <QuotaPopover label={label} title="Codex usage" trigger={<span>75%</span>}>
-        <button type="button" onClick={refresh}>Refresh</button>
+      <QuotaPopover onRefresh={activate} label={label} title="Codex usage" trigger={<span>75%</span>}>
+        <button type="button" onClick={details}>Details</button>
       </QuotaPopover>
     </>,
   );
@@ -21,7 +22,7 @@ function renderQuota() {
   return {
     composer: screen.getByRole("textbox", { name: "Message" }),
     trigger: screen.getByRole("button", { name: label }),
-    refresh,
+    details, activate,
   };
 }
 
@@ -51,66 +52,66 @@ describe("QuotaPopover interactions", () => {
   it("opens immediately on hover, keeps composer focus, and closes on leave", async () => {
     const { composer, trigger } = renderQuota();
     act(() => composer.focus());
-    expect(screen.queryByRole("button", refreshButton)).toBeNull();
+    expect(screen.queryByRole("button", detailsButton)).toBeNull();
 
     moveMouse(composer, trigger);
-    expect(screen.getByRole("button", refreshButton)).toBeTruthy();
+    expect(screen.getByRole("button", detailsButton)).toBeTruthy();
     expect(document.activeElement).toBe(composer);
     await settleTimers();
     expect(document.activeElement).toBe(composer);
 
     moveMouse(trigger, composer);
     await settleTimers();
-    expect(screen.queryByRole("button", refreshButton)).toBeNull();
+    expect(screen.queryByRole("button", detailsButton)).toBeNull();
     expect(document.activeElement).toBe(composer);
   });
 
-  it("keeps Refresh usable when the pointer crosses into the panel and closes on exit", async () => {
-    const { composer, trigger, refresh } = renderQuota();
+  it("keeps Details usable when the pointer crosses into the panel and closes on exit", async () => {
+    const { composer, trigger, details } = renderQuota();
     moveMouse(composer, trigger);
 
     moveMouse(trigger, composer);
-    const refreshControl = screen.getByRole("button", refreshButton);
-    moveMouse(composer, refreshControl);
+    const detailsControl = screen.getByRole("button", detailsButton);
+    moveMouse(composer, detailsControl);
     await settleTimers();
-    fireEvent.pointerDown(screen.getByRole("button", refreshButton), { pointerType: "mouse", button: 0 });
-    fireEvent.pointerUp(screen.getByRole("button", refreshButton), { pointerType: "mouse", button: 0 });
-    fireEvent.click(screen.getByRole("button", refreshButton));
-    expect(refresh).toHaveBeenCalledTimes(1);
+    fireEvent.pointerDown(screen.getByRole("button", detailsButton), { pointerType: "mouse", button: 0 });
+    fireEvent.pointerUp(screen.getByRole("button", detailsButton), { pointerType: "mouse", button: 0 });
+    fireEvent.click(screen.getByRole("button", detailsButton));
+    expect(details).toHaveBeenCalledTimes(1);
 
-    moveMouse(refreshControl, composer);
+    moveMouse(detailsControl, composer);
     await settleTimers();
-    expect(screen.queryByRole("button", refreshButton)).toBeNull();
+    expect(screen.queryByRole("button", detailsButton)).toBeNull();
   });
 
   it("dismisses the hover preview with Escape while the composer has focus", async () => {
     const { composer, trigger } = renderQuota();
     act(() => composer.focus());
     moveMouse(composer, trigger);
-    expect(screen.getByRole("button", refreshButton)).toBeTruthy();
+    expect(screen.getByRole("button", detailsButton)).toBeTruthy();
     await settleTimers();
 
     fireEvent.keyDown(composer, { key: "Escape" });
     await settleTimers();
-    expect(screen.queryByRole("button", refreshButton)).toBeNull();
+    expect(screen.queryByRole("button", detailsButton)).toBeNull();
     expect(document.activeElement).toBe(composer);
   });
 
   it("closes the hover preview on click and reopens it on the next click", async () => {
     const { composer, trigger } = renderQuota();
     moveMouse(composer, trigger);
-    expect(screen.getByRole("button", refreshButton)).toBeTruthy();
+    expect(screen.getByRole("button", detailsButton)).toBeTruthy();
 
     fireEvent.click(trigger, { detail: 1 });
     await settleTimers();
-    expect(screen.queryByRole("button", refreshButton)).toBeNull();
+    expect(screen.queryByRole("button", detailsButton)).toBeNull();
 
     fireEvent.click(trigger, { detail: 1 });
-    expect(screen.getByRole("button", refreshButton)).toBeTruthy();
+    expect(screen.getByRole("button", detailsButton)).toBeTruthy();
 
     moveMouse(trigger, composer);
     await settleTimers();
-    expect(screen.getByRole("button", refreshButton)).toBeTruthy();
+    expect(screen.getByRole("button", detailsButton)).toBeTruthy();
   });
 
   it("opens on tap and closes on a second tap", async () => {
@@ -126,15 +127,15 @@ describe("QuotaPopover interactions", () => {
     }
 
     tapTrigger();
-    expect(screen.getByRole("button", refreshButton)).toBeTruthy();
+    expect(screen.getByRole("button", detailsButton)).toBeTruthy();
     moveMouse(composer, trigger);
     moveMouse(trigger, composer);
     await settleTimers();
-    expect(screen.getByRole("button", refreshButton)).toBeTruthy();
+    expect(screen.getByRole("button", detailsButton)).toBeTruthy();
 
     tapTrigger();
     await settleTimers();
-    expect(screen.queryByRole("button", refreshButton)).toBeNull();
+    expect(screen.queryByRole("button", detailsButton)).toBeNull();
   });
 
   it.each([
@@ -157,28 +158,43 @@ describe("QuotaPopover interactions", () => {
     }
 
     activateTrigger();
-    expect(screen.getByRole("button", refreshButton)).toBeTruthy();
+    expect(screen.getByRole("button", detailsButton)).toBeTruthy();
     await settleTimers();
 
     act(() => trigger.focus());
     activateTrigger();
     await settleTimers();
-    expect(screen.queryByRole("button", refreshButton)).toBeNull();
+    expect(screen.queryByRole("button", detailsButton)).toBeNull();
     expect(document.activeElement).toBe(trigger);
 
     activateTrigger();
-    expect(screen.getByRole("button", refreshButton)).toBeTruthy();
+    expect(screen.getByRole("button", detailsButton)).toBeTruthy();
 
     moveMouse(composer, trigger);
     moveMouse(trigger, composer);
     await settleTimers();
-    const refresh = screen.getByRole("button", refreshButton);
-    act(() => refresh.focus());
-    expect(document.activeElement).toBe(refresh);
+    const details = screen.getByRole("button", detailsButton);
+    act(() => details.focus());
+    expect(document.activeElement).toBe(details);
 
-    fireEvent.keyDown(refresh, { key: "Escape" });
+    fireEvent.keyDown(details, { key: "Escape" });
     await settleTimers();
-    expect(screen.queryByRole("button", refreshButton)).toBeNull();
+    expect(screen.queryByRole("button", detailsButton)).toBeNull();
     expect(document.activeElement).toBe(trigger);
   });
+});
+
+it("requests fresh quota on hover and activation without extra reads on movement or touch entry", async () => {
+  const { composer, trigger, activate } = renderQuota();
+  moveMouse(composer, trigger);
+  fireEvent.pointerMove(trigger, { pointerType: "mouse" });
+  expect(activate).toHaveBeenCalledTimes(1);
+  fireEvent.click(trigger, { detail: 1 });
+  expect(activate).toHaveBeenCalledTimes(2);
+  fireEvent.pointerLeave(trigger, { pointerType: "mouse" });
+  fireEvent.pointerEnter(trigger, { pointerType: "touch" });
+  fireEvent.pointerDown(trigger, { pointerType: "touch" });
+  fireEvent.pointerUp(trigger, { pointerType: "touch" });
+  fireEvent.click(trigger, { detail: 1 });
+  expect(activate).toHaveBeenCalledTimes(3);
 });

@@ -40,6 +40,13 @@ export default function plugin(bb: BbPluginApi) {
     return resource ? { resource, hostId } : null;
   }
   bb.settings.define({
+    refreshIntervalSeconds: {
+      type: "number", label: "Auto-refresh interval (seconds)", default: 120,
+      description: "Poll while the thread is visible. Set to 0 to turn off the timer.",
+      experimental_schema: z.int().min(0).max(Math.floor(2_147_483_647 / 1000)),
+    },
+    refreshOnHover: { type: "boolean", label: "Refresh when hovering over the ring", default: true },
+    refreshOnPress: { type: "boolean", label: "Refresh when pressing the ring", default: true },
     language: {
       type: "select",
       label: "Language",

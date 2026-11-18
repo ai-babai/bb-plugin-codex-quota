@@ -4,12 +4,13 @@ import { usePortalScopeProps } from "./portal-scope";
 
 interface QuotaPopoverProps {
   label: string;
+  onRefresh: (input: "hover" | "press") => void;
   title: string;
   trigger: ReactNode;
   children: ReactNode;
 }
 
-export function QuotaPopover({ label, title, trigger, children }: QuotaPopoverProps) {
+export function QuotaPopover({ label, title, trigger, children, onRefresh }: QuotaPopoverProps) {
   const scope = usePortalScopeProps();
   const [mode, setMode] = useState<"closed" | "hover" | "pinned">("closed");
   const closeTimer = useRef<number | undefined>(undefined);
@@ -33,11 +34,13 @@ export function QuotaPopover({ label, title, trigger, children }: QuotaPopoverPr
     if (open) passive.current = false;
     setMode(open ? "pinned" : "closed");
   }}>
-    <Popover.Trigger aria-label={label}
+    <Popover.Trigger aria-label={label} onClick={() => onRefresh("press")}
       className="-m-1 inline-flex size-8 shrink-0 cursor-pointer select-none items-center justify-center rounded-full text-teal-600 transition-colors hover:bg-state-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-teal-400"
       onPointerEnter={event => {
         cancelClose();
-        if (event.pointerType !== "touch" && mode === "closed") {
+        if (event.pointerType === "touch") return;
+        onRefresh("hover");
+        if (mode === "closed") {
           passive.current = true;
           setMode("hover");
         }
@@ -48,7 +51,10 @@ export function QuotaPopover({ label, title, trigger, children }: QuotaPopoverPr
     <Popover.Portal>
       <Popover.Content {...scope} tabIndex={-1} side="top" align="end" sideOffset={8}
         aria-label={title} onPointerEnter={cancelClose} onPointerLeave={closeAfterLeave}
-        onOpenAutoFocus={event => { if (passive.current) event.preventDefault(); }}
+        onOpenAutoFocus={event => {
+          event.preventDefault();
+          if (!passive.current && event.target instanceof HTMLElement) event.target.focus();
+        }}
         onCloseAutoFocus={event => { if (passive.current) event.preventDefault(); }}
         className="z-50 grid w-56 max-w-[calc(100vw-2rem)] gap-2 rounded-md border border-border bg-popover p-2 text-xs text-popover-foreground shadow-md outline-none
           data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95
