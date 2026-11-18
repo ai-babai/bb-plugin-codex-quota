@@ -27,19 +27,25 @@ Click the ring to close the card after hovering. Click again to reopen it. Tap t
 
 Requires BB 0.49+, Plugin SDK 0.6.132 or newer in the 0.x series and BB’s bundled Codex provider. On the machine running the thread, Codex CLI must be signed in with a ChatGPT plan that includes Codex.
 
-From a local checkout with npm and the BB CLI:
+Install the released plugin from Git
+
+```sh
+bb plugin install 'git:https://github.com/ai-babai/bb-plugin-codex-quota.git@^0.1.0'
+```
+
+Update an existing Git installation with `bb plugin update codex-quota`.
+
+<details>
+<summary>Local checkout</summary>
+
+To install from a local checkout instead, run these commands in the repository root.
 
 ```sh
 npm ci --omit=dev --ignore-scripts
 bb plugin install .
 ```
 
-After the first public tag (`v0.1.0`), installation and updates are available through Git:
-
-```sh
-bb plugin install 'git:https://github.com/ai-babai/bb-plugin-codex-quota.git@^0.1.0'
-bb plugin update codex-quota
-```
+</details>
 
 ## Language
 

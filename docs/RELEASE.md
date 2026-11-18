@@ -89,6 +89,15 @@ request against `get-bb/marketplace:main`. After merge, verify `codex-quota`
 in the [published catalog](https://getbb.app/marketplace/v2/marketplace.json).
 Future compatible releases can use new Git tags within the same range.
 
+### What helps a reviewer
+
+- Lead with what appears in BB and how to try it. Include a short touch or keyboard check for an interactive plugin.
+- Identify the released tag and tracking range. Test the exact public install command in a clean BB instance.
+- Name the host process, the data it reads and what reaches the UI. Label demo data in the screenshots.
+- Report plugin and registry checks separately. Keep the catalog patch limited to the listing and its assets.
+
+Accepted examples include [Usage & Limits](https://github.com/get-bb/marketplace/pull/991), [Link Tooltips](https://github.com/get-bb/marketplace/pull/987) and [Thread PR Manager](https://github.com/get-bb/marketplace/pull/985).
+
 [Marketplace submission rules](https://github.com/get-bb/marketplace#submit-a-plugin) ·
 [Entry schema](https://github.com/get-bb/marketplace/blob/main/schema/marketplace-v2.schema.json) ·
 [Validation workflow](https://github.com/get-bb/marketplace/blob/main/.github/workflows/validate.yml)

@@ -25,19 +25,25 @@
 
 Требуются BB 0.49+, Plugin SDK от 0.6.132 в ветке 0.x и встроенный провайдер Codex. На машине, где запущен чат, нужен вход в Codex CLI через аккаунт ChatGPT с доступом к Codex.
 
-**Из локальной копии.** В корне репозитория, с Node.js, npm и `bb` в PATH:
+Установка из Git
+
+```sh
+bb plugin install 'git:https://github.com/ai-babai/bb-plugin-codex-quota.git@^0.1.0'
+```
+
+Обновить установленную из Git версию можно командой `bb plugin update codex-quota`.
+
+<details>
+<summary>Локальная установка</summary>
+
+Для установки из локальной копии выполните команды в корне репозитория.
 
 ```sh
 npm ci --omit=dev --ignore-scripts
 bb plugin install .
 ```
 
-**Из Git.** После публикации тега `v0.1.0` плагин можно будет установить и обновлять командами BB:
-
-```sh
-bb plugin install 'git:https://github.com/ai-babai/bb-plugin-codex-quota.git@^0.1.0'
-bb plugin update codex-quota
-```
+</details>
 
 ## Язык
 

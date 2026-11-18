@@ -1,51 +1,28 @@
 ---
-type: Submission Draft
-description: Pull request draft for listing Codex Quota in BB Community, with local validation results and the required public tag check.
+type: Marketplace Submission
+description: Submitted pull request for Codex Quota 0.1.0, including installation, privacy and validation results.
 created: "2026-11-17"
 ---
-Codex Quota puts a teal subscription-quota ring next to the permission control
-and context meter in Codex threads. A compact popover shows each reported
-window's remaining percentage and reset countdown, plus the available manual
-resets when Codex reports them. Hover over or tap the lightning bolt to read their expiry dates. The refresh interval, hover and press triggers,
-and display language are configurable.
+# Codex Quota 0.1.0
 
-The public source is [ai-babai/bb-plugin-codex-quota](https://github.com/ai-babai/bb-plugin-codex-quota)
-with Git range `^0.1.0` and planned initial tag `v0.1.0`. The package is
-`bb-plugin-codex-quota@0.1.0`. The entry ID is `codex-quota` and the submitter
-is the `ai-babai` GitHub account.
+[BB Marketplace submission #994](https://github.com/get-bb/marketplace/pull/994)
 
-The plugin runs with BB's plugin trust and reads the bundled Codex provider's
-public usage RPC for the thread's execution machine. Refresh requests may
-cause the provider to contact its usage service. Defaults are a two-minute
-poll while the thread is visible and refresh on hover or press. A host entry
-runs Codex CLI's app-server on the thread's machine and calls the read-only
-`account/rateLimits/read` method for the manual reset count. The host verifies
-the account and returns only the count and requested expiry dates. Codex
-handles credentials. The plugin excludes account keys, email addresses and
-provider error bodies from its browser response. It requires BB 0.49+ with
-Plugin SDK 0.6.132+ in the 0.x series, the bundled Codex provider, and Codex CLI
-signed in to a ChatGPT subscription. Footer placement uses a content script
-that removes its anchors on cleanup.
+Codex Quota shows the smallest remaining Codex limit beside the BB context meter. On a phone, the ring sits beside the send controls. The card shows each quota window, its reset time and any available manual resets.
 
-Both screenshots show the installed plugin in BB with demo usage data for
-Codex Plus, including five-hour and weekly windows and the reset counter.
+**Try it.** In a Codex thread, hover over or tap the ring. When resets are available, tap the lightning bolt to see their expiry dates. Tap again to close the list. Viewing dates never spends a reset.
 
-- `footer-dark.png` shows the English popover and quota ring in the dark theme.
-- `quota-light.png` shows the Russian popover and quota ring in the light theme.
+**Release.** [Codex Quota v0.1.0](https://github.com/ai-babai/bb-plugin-codex-quota/tree/v0.1.0), MIT, package `bb-plugin-codex-quota`, entry ID `codex-quota`. The public tag resolves to `fe246a982be96bf5a77106d4bc303c5c598d7d4b`. The registry tracks compatible releases with `^0.1.0`.
 
-The overview is copied byte for byte from the plugin repository's
-`PLUGIN_OVERVIEW.md`.
+```sh
+bb plugin install 'git:https://github.com/ai-babai/bb-plugin-codex-quota.git@^0.1.0'
+```
 
-Plugin validation covers TypeScript, behavioral tests, complexity, coverage of changed
-code, runtime import cycles, the BB build and package contents. Stryker checks
-countdown and freshness logic separately.
+**Requirements and data.** Requires BB 0.49+, Plugin SDK 0.6.132+ within 0.x, the bundled Codex provider and a Codex CLI signed in to a ChatGPT subscription on the thread’s machine. The provider supplies usage and may contact its service during refresh. For manual resets, the host reads `account/rateLimits/read` through Codex CLI. It checks the account match before returning the count or requested dates. The plugin reads no credentials and sends no telemetry. The content script places the ring and removes its anchors on cleanup.
 
-Marketplace validation passed on upstream `c134869e56ebe40fa0280314508d6de3fbe8368e`
-with `npm run build` (627 entries in each catalog), `npm test` (47 tests and a
-mocked retry check), and `npm run gate:v1` (one new entry).
+**Listing assets.** The two screenshots show the installed Plus interface with demo quotas, in English (dark) and Russian (light). The overview matches the release’s [PLUGIN_OVERVIEW.md](https://github.com/ai-babai/bb-plugin-codex-quota/blob/v0.1.0/PLUGIN_OVERVIEW.md).
 
-An anonymous Git lookup can read the public repository. Source liveness for
-this entry is blocked until the repository has a release tag for `^0.1.0`.
-Before opening the PR, confirm plugin `npm run check` for the approved source
-commit, verify that the public `v0.1.0` tag resolves to that commit, and rerun
-marketplace `npm run check` against the source in the entry.
+**Validation**
+
+- The [release quality check](https://github.com/ai-babai/bb-plugin-codex-quota/actions/runs/44353378297) passed type checking, 78 plugin tests, 5 quality-tool tests, the BB build and package validation. The [mutation check](https://github.com/ai-babai/bb-plugin-codex-quota/actions/runs/44353378103) detected all 41 mutations in the quota timing logic.
+- A clean BB 0.49.0 installation resolved the public Git range to `v0.1.0`, built the app, host and server with SDK 0.6.132, and reported the plugin as running.
+- Marketplace built both catalogs with 627 entries. All remote source checks, 47 registry tests, the upload retry tests and the v1 compatibility gate passed.
