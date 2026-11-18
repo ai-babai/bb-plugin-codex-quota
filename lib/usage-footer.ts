@@ -2,16 +2,23 @@ import type { PluginContentScriptContext } from "@get-bb/plugin-sdk/app";
 
 function findPlacementTarget(origin: HTMLElement) {
   const shell = origin.closest('[data-app-composer-role="primary"][data-promptbox-shell]');
-  const composer = shell?.querySelector(':scope > [data-follow-up-composer-anchor] > [data-follow-up-composer]');
-  if (!composer) return null;
+  if (!shell) return null;
+  const composer = shell.querySelector(':scope > [data-follow-up-composer-anchor] > [data-follow-up-composer]');
+  const footer = composer?.querySelector(':scope > [data-follow-up-composer-footer]')
+    ?? shell.querySelector(':scope > [data-new-thread-footer]');
+  const context = footer?.querySelector('button:is([aria-label^="Context window"], [title^="Context window"])');
+  if (context) return { before: true, sibling: context };
+  const permissions = footer?.querySelector('button:is([aria-label="Permission mode"], [title="Permission mode"])');
+  if (permissions) return { before: false, sibling: permissions };
+  const submit = composer?.querySelector(':scope > [data-composer-box] form[data-promptbox-compact] [data-promptbox-submit-group]');
+  return submit ? { before: true, sibling: submit } : null;
+}
 
-  const context = composer.querySelector<HTMLElement>(
-    ':scope > [data-follow-up-composer-footer] :is(button[aria-label^="Context window"], button[title^="Context window"])',
-  );
-  // Before a context reading exists and in compact layouts, use the same composer’s submit group.
-  return context ?? composer.querySelector<HTMLElement>(
-    ':scope > [data-composer-box] form[data-promptbox] [data-promptbox-submit-group]',
-  );
+function placeBeside(anchor: HTMLElement, { before, sibling }: { before: boolean; sibling: Element }) {
+  if ((before ? sibling.previousElementSibling : sibling.nextElementSibling) === anchor) return false;
+  if (before) sibling.before(anchor);
+  else sibling.after(anchor);
+  return true;
 }
 
 // BB exposes composer actions but no slot beside the context meter yet.
@@ -51,9 +58,8 @@ export function mountUsageFooter({ pluginId }: PluginContentScriptContext) {
         continue;
       }
       const anchor = existingAnchor ?? createAnchor(origin);
-      const needsPlacement = anchor.nextElementSibling !== target;
-      if (needsPlacement) target.before(anchor);
-      if (needsPlacement || force) notify(origin, anchor);
+      const moved = placeBeside(anchor, target);
+      if (moved || force) notify(origin, anchor);
     }
   }
   function notify(origin: HTMLElement, target: HTMLElement | null) {

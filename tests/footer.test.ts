@@ -56,9 +56,9 @@ it("follows the context control across footer changes and cleans up on disposal"
 
     context.remove();
     requestPlacement();
-    expect(footer.querySelector(anchorSelector)).toBeNull();
-    expect(submitGroup.previousElementSibling).toBe(anchor);
-    submitGroup.remove();
+    expect(footer.querySelector('button[aria-label="Permission mode"]')?.nextElementSibling).toBe(anchor);
+    expect(submitGroup.previousElementSibling).toBeNull();
+    footer.querySelector("button")!.remove();
     requestPlacement();
     expect(onPlaced).toHaveBeenLastCalledWith(expect.objectContaining({ detail: { origin, target: null } }));
 
@@ -76,7 +76,7 @@ it("follows the context control across footer changes and cleans up on disposal"
   }
 });
 
-it("uses the local send controls until context appears, follows it, and removes the orphaned anchor", async () => {
+it("uses the local permissions control until context appears, follows it, and removes the orphaned anchor", async () => {
   const layout = document.createElement("div");
   const { shell, footer, context, origin, submitGroup } = makeComposer();
   const other = makeComposer({ showQuota: false });
@@ -87,7 +87,8 @@ it("uses the local send controls until context appears, follows it, and removes 
   document.body.append(layout);
   const dispose = mountFooter();
   try {
-    expect(submitGroup.previousElementSibling?.matches(anchorSelector)).toBe(true);
+    expect(footer.querySelector("button")?.nextElementSibling?.matches(anchorSelector)).toBe(true);
+    expect(submitGroup.previousElementSibling).toBeNull();
 
     footer.append(context);
     const anchor = await vi.waitFor(() => {

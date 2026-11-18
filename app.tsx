@@ -84,17 +84,18 @@ function DraftQuotaDisk() {
   const environment = selection?.environment;
   const location = useMemo(() => draftLocation(environment), [environment]);
   if (!location || selection?.providerId !== "codex") return null;
-  return <ComposerQuota key={JSON.stringify(location)} location={location} />;
+  return <QuotaFooter key={JSON.stringify(location)} location={location} />;
 }
 
 function QuotaDisk() {
   const composer = useComposer();
-  if (composer.scope.kind !== "thread" || composer.selection?.providerId !== "codex") return null;
-  return <ThreadFooter key={composer.scope.threadId} threadId={composer.scope.threadId} />;
+  const threadId = composer.scope.kind === "thread" ? composer.scope.threadId : null;
+  const location = useMemo(() => threadId ? { threadId } : null, [threadId]);
+  if (!location || composer.selection?.providerId !== "codex") return null;
+  return <QuotaFooter key={threadId} location={location} />;
 }
 
-function ThreadFooter({ threadId }: { threadId: string }) {
-  const location = useMemo(() => ({ threadId }), [threadId]);
+function QuotaFooter({ location }: { location: QuotaLocation }) {
   const { origin, target } = useFooterTarget();
   return <><span ref={origin} data-codex-quota-origin="" className="hidden" />{target &&
     createPortal(<ComposerQuota location={location} />, target)}</>;
@@ -178,7 +179,7 @@ function QuotaCard({ location, data, now, fresh, count, format, onRefresh }: {
   </QuotaPopover>;
 }
 export default definePluginApp((app) => {
-  app.composer.customize({ id: "draft-quota", scopes: ["new-thread"], actions: [{ id: "disk", component: DraftQuotaDisk }] });
+  app.composer.customize({ id: "draft-quota", scopes: ["new-thread"], banners: [{ id: "disk", chrome: "bare", component: DraftQuotaDisk }] });
   app.contentScripts.register({ id: "quota-footer", mount: mountUsageFooter });
   app.composer.customize({ id: "quota-disk", scopes: ["thread"], banners: [{ id: "disk", chrome: "bare", component: QuotaDisk }] });
 });

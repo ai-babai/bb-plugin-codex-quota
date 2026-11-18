@@ -111,31 +111,37 @@ it("leaves other providers' composers alone", () => {
 });
 
 it("shows the selected machine’s limits before the first prompt and clears them when the selection changes", async () => {
-  const DraftDisk: ComponentType = customize.mock.calls.find(([r]) => r.scopes.includes("new-thread"))![0].actions[0].component;
+  const DraftDisk: ComponentType = customize.mock.calls.find(([r]) => r.scopes.includes("new-thread"))![0].banners[0].component;
   const environment = (hostId: string) => ({ type: "provider", environmentProviderId: "project-checkout",
     machine: { type: "existing", hostId }, inputs: null } as const);
   respondWith(quota([windowData("weekly", 65, 52)]));
   composer.selection.environment = environment("host-a");
-  const view = render(<DraftDisk />);
-  await screen.findByRole("button", { name: /65% left/ });
+  dispose = mount({ pluginId: "codex-quota" } as Parameters<typeof mount>[0]);
+  const draft = () => <div data-app-composer-role="primary" data-promptbox-shell="">
+    <DraftDisk /><form data-promptbox="" />
+    <div data-new-thread-footer=""><button aria-label="Permission mode" /></div>
+  </div>;
+  const view = render(draft());
+  const ring = await screen.findByRole("button", { name: /65% left/ });
+  expect(screen.getByRole("button", { name: "Permission mode" }).nextElementSibling?.contains(ring)).toBe(true);
   expect(rpc.call).toHaveBeenCalledWith("quota", { hostId: "host-a", refresh: false });
   composer.selection.environment = { type: "reuse", environmentId: "env-b" };
   respondWith(quota([windowData("weekly", 20, 52)]));
-  view.rerender(<DraftDisk />);
+  view.rerender(draft());
   expect(screen.queryByRole("button", { name: /65% left/ })).toBeNull();
   await screen.findByRole("button", { name: /20% left/ });
   expect(rpc.call).toHaveBeenCalledWith("quota", { environmentId: "env-b", refresh: false });
   composer.selection.environment = { type: "host", hostId: "host-c", workspace: { type: "personal" } };
-  view.rerender(<DraftDisk />);
+  view.rerender(draft());
   await screen.findByRole("button", { name: /20% left/ });
   expect(rpc.call).toHaveBeenCalledWith("quota", { hostId: "host-c", refresh: false });
   rpc.call.mockClear();
   composer.selection.environment = { type: "project-default" };
-  view.rerender(<DraftDisk />);
-  expect(screen.queryByRole("button")).toBeNull();
+  view.rerender(draft());
+  expect(screen.queryByRole("button", { name: /Codex/ })).toBeNull();
   composer.selection.environment = environment("host-a");
   composer.selection.providerId = "other";
-  view.rerender(<DraftDisk />);
-  expect(screen.queryByRole("button")).toBeNull();
+  view.rerender(draft());
+  expect(screen.queryByRole("button", { name: /Codex/ })).toBeNull();
   expect(rpc.call).not.toHaveBeenCalled();
 });
