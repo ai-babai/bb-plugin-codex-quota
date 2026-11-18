@@ -5,7 +5,7 @@ export const resetContract = defineRpcContract({
   availableResets: {
     input: z.object({
       accountKey: z.string(),
-      includeExpiries: z.boolean().optional(),
+      includeExpiries: z.boolean().default(false),
     }).strict(),
     output: z.object({
       count: z.int().nonnegative().nullable(),

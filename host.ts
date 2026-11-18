@@ -28,7 +28,7 @@ const rateLimitsSchema = z.object({
 });
 const availableCreditSchema = z.object({
   status: z.literal("available"),
-  expiresAt: z.int().nonnegative().nullable(),
+  expiresAt: z.int().nonnegative().max(8_640_000_000_000).nullable(),
 });
 
 type CodexProcess = ChildProcessByStdio<Writable, Readable, null>;
@@ -41,7 +41,7 @@ function windowsExecutable(name: string): string {
 
 function readResets(
   child: CodexProcess,
-  { accountKey, includeExpiries = false }: ResetQuery,
+  { accountKey, includeExpiries }: ResetQuery,
   signal: AbortSignal,
 ): Promise<ResetResult> {
   return new Promise((resolve) => {

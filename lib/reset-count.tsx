@@ -35,16 +35,23 @@ function ResetExpiries({ threadId, quota, format }: ResetProps) {
   if (summary.count === 0) return <>{text.noResets}</>;
   if (!summary.expiries?.length || summary.count === null) return <>{text.unknownExpiry}</>;
 
-  const rows = new Map<string, number>();
+  const rows = new Map<number | null, number>();
   const sorted = [...summary.expiries].sort((a, b) => (a ?? Infinity) - (b ?? Infinity));
   for (const seconds of sorted) {
-    const label = seconds === null ? text.noExpiry : format.formatExpiry(seconds);
-    rows.set(label, (rows.get(label) ?? 0) + 1);
+    const minute = seconds === null ? null : Math.floor(seconds / 60) * 60;
+    rows.set(minute, (rows.get(minute) ?? 0) + 1);
   }
-  if (sorted.length < summary.count) rows.set(text.unknownExpiry, summary.count - sorted.length);
-  return <><div className="font-medium">{text.expires}</div>
-    {Array.from(rows, ([label, count]) => <div key={label}>{label}{count > 1 ? ` × ${count}` : ""}</div>)}
-  </>;
+  const missing = summary.count - sorted.length;
+  return <ul className="grid gap-1">
+    {Array.from(rows, ([seconds, count]) => {
+      const expiry = seconds === null ? null : format.formatExpiry(seconds);
+      return <li key={seconds ?? "unlimited"} className="flex items-baseline justify-between gap-4">
+        <span>{expiry?.date ?? text.noExpiry}{count > 1 && ` × ${count}`}</span>
+        {expiry && <span className="whitespace-nowrap text-muted-foreground tabular-nums">{expiry.time}</span>}
+      </li>;
+    })}
+    {missing > 0 && <li className="text-muted-foreground">{text.unknownExpiry}{missing > 1 && ` × ${missing}`}</li>}
+  </ul>;
 }
 
 export function ResetCount(props: ResetProps) {
@@ -60,7 +67,8 @@ export function ResetCount(props: ResetProps) {
     <Tooltip.Root>
       <Tooltip.Trigger asChild>{badge}</Tooltip.Trigger>
       <Tooltip.Content side="top" align="start" sideOffset={4} collisionPadding={8}
-        className="z-50 rounded-md border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-md">
+        className="z-50 grid min-w-36 gap-1.5 rounded-md border border-border bg-popover p-2 text-xs text-popover-foreground shadow-md">
+        <div className="font-medium">{props.format.text.resets}</div>
         <ResetExpiries {...props} />
       </Tooltip.Content>
     </Tooltip.Root>
