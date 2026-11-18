@@ -1,0 +1,55 @@
+name: Quality
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    if: github.event_name == 'pull_request' || !github.event.deleted
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - name: Select the Git diff base
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            base="$PR_BASE"
+          else
+            base="$PUSH_BEFORE"
+          fi
+          if [[ ! "$base" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'The event did not supply a valid Git diff base.' >&2
+            exit 1
+          fi
+          if [[ "$base" =~ ^0+$ ]]; then
+            base=$(git hash-object -t tree -w --stdin </dev/null)
+          elif ! git cat-file -e "${base}^{commit}"; then
+            git fetch --no-tags origin "$base"
+          fi
+          printf 'QUALITY_BASE=%s\n' "$base" >> "$GITHUB_ENV"
+      - run: npm ci --ignore-scripts
+      - run: npm install --global --ignore-scripts bb-app@0.49.0
+      - run: npm run check
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: quality-report
+          path: |
+            node_modules/.cache/codex-quota-quality/quality.json
+            node_modules/.cache/codex-quota-quality/lcov.info
+          include-hidden-files: true
+          if-no-files-found: ignore

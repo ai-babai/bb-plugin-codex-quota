@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import * as Tooltip from "@radix-ui/react-tooltip";
+import { useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactElement } from "react";
+import * as Popover from "@radix-ui/react-popover";
 import { experimental_Icon as Icon, useRpc } from "@get-bb/plugin-sdk/app";
 import type { Quota, rpcContract } from "../server";
 import type { getQuotaFormat } from "./format";
@@ -12,13 +12,16 @@ type ResetRead = { pending: Promise<ResetSummary>; value?: ResetSummary };
 const counts = new WeakMap<Quota, ResetRead>();
 const details = new WeakMap<Quota, ResetRead>();
 
-function useResetSummary(threadId: string, quota: Quota | null, includeExpiries = false, enabled = true) {
+function useResetSummary(threadId: string, quota: Quota | null, { includeExpiries, enabled }: {
+  includeExpiries: boolean;
+  enabled?: boolean;
+}) {
   const rpc = useRpc<typeof rpcContract>();
   const cache = includeExpiries ? details : counts;
   const plan = quota?.account?.plan;
   const [last, setLast] = useState<{ threadId: string; plan?: string; value: ResetSummary }>();
   useEffect(() => {
-    if (!enabled || !quota) return;
+    if (enabled === false || !quota) return;
     let active = true;
     let read = cache.get(quota);
     if (!read) {
@@ -36,7 +39,7 @@ function useResetSummary(threadId: string, quota: Quota | null, includeExpiries 
 }
 
 export function useAvailableResetCount(threadId: string, quota: Quota | null, fresh: boolean) {
-  const summary = useResetSummary(threadId, fresh ? quota : null);
+  const summary = useResetSummary(threadId, fresh ? quota : null, { includeExpiries: false });
   if (quota && (!quota.account || !fresh)) return null;
   return summary?.count;
 }
@@ -65,26 +68,95 @@ function ResetExpiries({ summary, format }: { summary: ResetSummary; format: Res
   </ul>;
 }
 
-export function ResetCount(props: ResetProps) {
-  const { count } = props;
-  const [open, setOpen] = useState(false);
-  const summary = useResetSummary(props.threadId, props.quota, true, open && count != null && count > 0);
+const badgeContainer = "-my-3.5 -mr-0.5 ml-auto inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center";
+
+function useResetDetailsInteraction() {
+  const [mode, setMode] = useState<"closed" | "hover" | "focus" | "pinned">("closed");
+  const timer = useRef<number | undefined>(undefined);
+  const pressedWithTouch = useRef(false);
+  const cancelTimer = () => window.clearTimeout(timer.current);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+
+  function setOpen(open: boolean) {
+    cancelTimer();
+    setMode(open ? "pinned" : "closed");
+  }
+
+  function enterTrigger(event: PointerEvent) {
+    if (event.pointerType === "touch") return;
+    cancelTimer();
+    if (mode !== "closed") return;
+    timer.current = window.setTimeout(() => setMode("hover"), 150);
+  }
+
+  function leave(event: PointerEvent, keepPreview: boolean) {
+    if (event.pointerType === "touch") return;
+    cancelTimer();
+    if (mode !== "hover") return;
+    if (!keepPreview) {
+      setMode("closed");
+      return;
+    }
+    // Keep the preview open across the gap between the badge and the details.
+    timer.current = window.setTimeout(() => setMode("closed"), 180);
+  }
+
+  function focusTrigger() {
+    cancelTimer();
+    setMode(current => current === "pinned" ? current : "focus");
+  }
+
+  function pressTrigger(event: MouseEvent) {
+    if (!pressedWithTouch.current || event.detail === 0) return;
+    // A tap can focus the button before it clicks. Only the prior tap pins it.
+    event.preventDefault();
+    setOpen(mode !== "pinned");
+  }
+
+  return {
+    active: mode !== "closed", pinned: mode === "pinned", setOpen,
+    enterTrigger, leave, cancelTimer, focusTrigger, pressTrigger,
+    rememberPointer: (event: PointerEvent) => { pressedWithTouch.current = event.pointerType === "touch"; },
+  };
+}
+
+function keepFocus(event: Event) {
+  event.preventDefault();
+}
+
+function ResetDetails({ threadId, quota, format, badge, label }: Omit<ResetProps, "count"> & {
+  badge: ReactElement;
+  label: string;
+}) {
+  const interaction = useResetDetailsInteraction();
+  const summary = useResetSummary(threadId, quota, {
+    includeExpiries: true,
+    enabled: interaction.active,
+  });
+  const open = interaction.active && (interaction.pinned || summary !== undefined);
+  return <Popover.Root open={open} onOpenChange={interaction.setOpen}>
+    <Popover.Trigger aria-label={label} className={`${badgeContainer} group cursor-pointer focus-visible:outline-none`}
+      onPointerEnter={interaction.enterTrigger} onPointerLeave={event => interaction.leave(event, open)}
+      onPointerDown={interaction.rememberPointer} onFocus={interaction.focusTrigger} onClick={interaction.pressTrigger}>
+      <Popover.Anchor asChild>{badge}</Popover.Anchor>
+    </Popover.Trigger>
+    <Popover.Content side="top" align="start" sideOffset={4} collisionPadding={8} aria-label={format.text.resets}
+      onOpenAutoFocus={keepFocus} onCloseAutoFocus={keepFocus}
+      onPointerEnter={interaction.cancelTimer} onPointerLeave={event => interaction.leave(event, true)}
+      className="z-50 grid min-w-36 gap-1.5 rounded-md border border-border bg-popover p-2 text-xs text-popover-foreground shadow-md">
+      <div className="font-medium">{format.text.resets}</div>
+      {summary ? <ResetExpiries summary={summary} format={format} /> : <span role="status">…</span>}
+    </Popover.Content>
+  </Popover.Root>;
+}
+
+export function ResetCount({ count, threadId, quota, format }: ResetProps) {
   if (count === null) return null;
-  const badge = <span tabIndex={count ? 0 : undefined}
-    onPointerLeave={() => { if (!summary) setOpen(false); }}
-    className="ml-auto inline-flex h-4 min-w-10 shrink-0 items-center justify-center gap-1 rounded-full bg-muted px-1.5 text-muted-foreground tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+  const badge = <span className="inline-flex h-4 min-w-10 shrink-0 items-center justify-center gap-1 rounded-full bg-muted px-1.5 text-muted-foreground tabular-nums group-focus-visible:ring-2 group-focus-visible:ring-ring">
     <Icon name="Zap" aria-hidden="true" className="size-3.5" />
-    <span className="sr-only">{props.format.text.manualResets}: </span>{count ?? "–"}
+    <span className="sr-only">{format.text.manualResets}: </span>{count ?? "–"}
   </span>;
-  if (!count) return badge;
-  return <Tooltip.Provider delayDuration={150}>
-    <Tooltip.Root open={open} onOpenChange={setOpen}>
-      <Tooltip.Trigger asChild>{badge}</Tooltip.Trigger>
-      {summary && <Tooltip.Content side="top" align="start" sideOffset={4} collisionPadding={8}
-        className="z-50 grid min-w-36 gap-1.5 rounded-md border border-border bg-popover p-2 text-xs text-popover-foreground shadow-md">
-        <div className="font-medium">{props.format.text.resets}</div>
-        <ResetExpiries summary={summary} format={props.format} />
-      </Tooltip.Content>}
-    </Tooltip.Root>
-  </Tooltip.Provider>;
+  if (!count) return <span className={`${badgeContainer} pointer-events-none`}>{badge}</span>;
+  return <ResetDetails threadId={threadId} quota={quota} format={format} badge={badge}
+    label={`${format.text.manualResets}: ${count}`} />;
 }

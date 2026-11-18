@@ -10,8 +10,32 @@ interface QuotaPopoverProps {
   children: ReactNode;
 }
 
+function useInsideTouchFocus() {
+  const inside = useRef(false);
+  const timer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+
+  function start() {
+    window.clearTimeout(timer.current);
+    inside.current = true;
+  }
+
+  function end() {
+    // BB can focus the composer as part of a tap on non-focusable card content.
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => { inside.current = false; }, 0);
+  }
+
+  function keepOpen(event: Event) {
+    if (inside.current) event.preventDefault();
+  }
+
+  return { start, end, keepOpen };
+}
+
 export function QuotaPopover({ label, title, trigger, children, onRefresh }: QuotaPopoverProps) {
   const scope = usePortalScopeProps();
+  const insideTouch = useInsideTouchFocus();
   const [mode, setMode] = useState<"closed" | "hover" | "pinned">("closed");
   const closeTimer = useRef<number | undefined>(undefined);
   const passive = useRef(false);
@@ -51,6 +75,8 @@ export function QuotaPopover({ label, title, trigger, children, onRefresh }: Quo
     <Popover.Portal>
       <Popover.Content {...scope} tabIndex={-1} side="top" align="end" sideOffset={8}
         aria-label={title} onPointerEnter={cancelClose} onPointerLeave={closeAfterLeave}
+        onTouchStartCapture={insideTouch.start} onTouchEndCapture={insideTouch.end} onTouchCancelCapture={insideTouch.end}
+        onFocusOutside={insideTouch.keepOpen}
         onOpenAutoFocus={event => {
           event.preventDefault();
           if (!passive.current && event.target instanceof HTMLElement) event.target.focus();

@@ -6,7 +6,7 @@ created: "2026-11-17"
 Codex Quota puts a teal subscription-quota ring next to the permission control
 and context meter in Codex threads. A compact popover shows each reported
 window's remaining percentage and reset countdown, plus the available manual
-resets when Codex reports them. The refresh interval, hover and press triggers,
+resets when Codex reports them. Hover over or tap the lightning bolt to read their expiry dates. The refresh interval, hover and press triggers,
 and display language are configurable.
 
 The public source is [ai-babai/bb-plugin-codex-quota](https://github.com/ai-babai/bb-plugin-codex-quota)
@@ -36,8 +36,9 @@ Codex Plus, including five-hour and weekly windows and the reset counter.
 The overview is copied byte for byte from the plugin repository's
 `PLUGIN_OVERVIEW.md`.
 
-The plugin passed TypeScript, all 32 behavioral tests, the BB build and package
-validation. A clean production-only installation also built successfully.
+Plugin validation covers TypeScript, behavioral tests, complexity, coverage of changed
+code, runtime import cycles, the BB build and package contents. Stryker checks
+countdown and freshness logic separately.
 
 Marketplace validation passed on upstream `c134869e56ebe40fa0280314508d6de3fbe8368e`
 with `npm run build` (627 entries in each catalog), `npm test` (47 tests and a

@@ -10,6 +10,7 @@ vi.mock("@get-bb/plugin-sdk/app", () => ({ useRpc: () => rpc }));
 afterEach(() => {
   cleanup();
   rpc.call.mockReset();
+  vi.restoreAllMocks();
   vi.useRealTimers();
 });
 
@@ -59,4 +60,22 @@ it("reschedules polling when the interval changes and stops polling at zero", as
 
   await act(async () => { document.dispatchEvent(new Event("visibilitychange")); });
   expect(rpc.call).toHaveBeenCalledExactlyOnceWith("quota", { threadId: "thread-a", refresh: false });
+});
+
+it("skips scheduled reads while hidden and resumes with a cached read", async () => {
+  vi.useFakeTimers();
+  const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+  rpc.call.mockResolvedValue({ account: null, error: "unavailable" } satisfies Quota);
+  renderHook(() => useQuota("thread-a", 2));
+
+  await act(() => vi.advanceTimersByTimeAsync(4_000));
+  expect(rpc.call).toHaveBeenCalledExactlyOnceWith("quota", { threadId: "thread-a", refresh: false });
+
+  hidden.mockReturnValue(false);
+  await act(async () => { document.dispatchEvent(new Event("visibilitychange")); });
+  expect(rpc.call).toHaveBeenNthCalledWith(2, "quota", { threadId: "thread-a", refresh: false });
+
+  await act(() => vi.advanceTimersByTimeAsync(2_000));
+  expect(rpc.call).toHaveBeenCalledTimes(3);
+  expect(rpc.call).toHaveBeenLastCalledWith("quota", { threadId: "thread-a", refresh: true });
 });

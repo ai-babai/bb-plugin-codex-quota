@@ -1,43 +1,59 @@
 import type { PluginContentScriptContext } from "@get-bb/plugin-sdk/app";
 
+function findPlacementTarget(origin: HTMLElement) {
+  const shell = origin.closest('[data-app-composer-role="primary"][data-promptbox-shell]');
+  const composer = shell?.querySelector(':scope > [data-follow-up-composer-anchor] > [data-follow-up-composer]');
+  if (!composer) return null;
+
+  const context = composer.querySelector<HTMLElement>(
+    ':scope > [data-follow-up-composer-footer] :is(button[aria-label^="Context window"], button[title^="Context window"])',
+  );
+  // In the collapsed mobile composer BB keeps the submit group and omits the footer.
+  return context ?? composer.querySelector<HTMLElement>(
+    ':scope > [data-composer-box] form[data-promptbox-compact] [data-promptbox-submit-group]',
+  );
+}
+
 // BB exposes composer actions but no slot beside the context meter yet.
 // This content script owns only our portal anchors; host controls stay intact.
 export function mountUsageFooter({ pluginId }: PluginContentScriptContext) {
   const anchors = new Map<HTMLElement, HTMLElement>();
   let frame = 0;
-  function place(force = false) {
+
+  function createAnchor(origin: HTMLElement) {
+    const anchor = document.createElement("span");
+    anchor.dataset.bbPluginRoot = "";
+    anchor.dataset.bbPlugin = pluginId;
+    anchor.dataset.codexQuotaFooter = "";
+    anchor.style.display = "inline-flex";
+    anchor.style.alignItems = "center";
+    anchors.set(origin, anchor);
+    return anchor;
+  }
+
+  function removeAnchor(origin: HTMLElement, anchor: HTMLElement) {
+    anchor.remove();
+    anchors.delete(origin);
+  }
+
+  function place(force?: boolean) {
     for (const [origin, anchor] of anchors) {
-      if (!origin.isConnected) { anchor.remove(); anchors.delete(origin); }
+      if (!origin.isConnected) removeAnchor(origin, anchor);
     }
-    for (const origin of Array.from(document.querySelectorAll<HTMLElement>("[data-codex-quota-origin]"))) {
-      let container = origin.parentElement;
-      let context: HTMLElement | null = null;
-      while (container && container !== document.body) {
-        context = container.querySelector<HTMLElement>('button[aria-label^="Context window"], button[title^="Context window"]');
-        if (context || container.querySelector('button[aria-label="Permission mode"]')) break;
-        container = container.parentElement;
-      }
-      let anchor = anchors.get(origin);
-      if (!context) {
-        if (anchor) {
-          anchor.remove();
-          anchors.delete(origin);
+    for (const origin of document.querySelectorAll<HTMLElement>("[data-codex-quota-origin]")) {
+      const target = findPlacementTarget(origin);
+      const existingAnchor = anchors.get(origin);
+      if (!target) {
+        if (existingAnchor) {
+          removeAnchor(origin, existingAnchor);
           notify(origin, null);
         }
         continue;
       }
-      const changed = !anchor || anchor.nextElementSibling !== context;
-      if (!anchor) {
-        anchor = document.createElement("span");
-        anchor.dataset.bbPluginRoot = "";
-        anchor.dataset.bbPlugin = pluginId;
-        anchor.dataset.codexQuotaFooter = "";
-        anchor.style.display = "inline-flex";
-        anchor.style.alignItems = "center";
-        anchors.set(origin, anchor);
-      }
-      if (changed) context.before(anchor);
-      if (changed || force) notify(origin, anchor);
+      const anchor = existingAnchor ?? createAnchor(origin);
+      const needsPlacement = anchor.nextElementSibling !== target;
+      if (needsPlacement) target.before(anchor);
+      if (needsPlacement || force) notify(origin, anchor);
     }
   }
   function notify(origin: HTMLElement, target: HTMLElement | null) {

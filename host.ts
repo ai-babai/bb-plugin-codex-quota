@@ -39,11 +39,22 @@ function windowsExecutable(name: string): string {
   return win32.join(process.env.SystemRoot ?? "C:\\Windows", "System32", name);
 }
 
-function readResets(
-  child: CodexProcess,
-  { accountKey, includeExpiries }: ResetQuery,
-  signal: AbortSignal,
-): Promise<ResetResult> {
+function parseResetResult(result: object, { accountKey, includeExpiries }: ResetQuery): ResetResult {
+  const limits = rateLimitsSchema.safeParse(result);
+  if (!limits.success || accountNamespace + limits.data.accountId !== accountKey) return { count: null };
+  const { availableCount: count, credits } = limits.data.rateLimitResetCredits;
+  if (!includeExpiries || !Array.isArray(credits)) return { count };
+
+  const expiries: (number | null)[] = [];
+  for (const row of credits) {
+    if (expiries.length === count) break;
+    const credit = availableCreditSchema.safeParse(row);
+    if (credit.success) expiries.push(credit.data.expiresAt);
+  }
+  return { count, expiries };
+}
+
+function readResets(child: CodexProcess, input: ResetQuery, signal: AbortSignal): Promise<ResetResult> {
   return new Promise((resolve) => {
     let pending = "";
     let expectedId = 1;
@@ -82,22 +93,11 @@ function readResets(
       if (expectedId === 1) {
         expectedId = 2;
         send({ method: "initialized" });
-        send({ id: 2, method: "account/rateLimits/read", params: { excludeResetCreditDetails: !includeExpiries } });
+        send({ id: 2, method: "account/rateLimits/read", params: { excludeResetCreditDetails: !input.includeExpiries } });
         return;
       }
 
-      const limits = rateLimitsSchema.safeParse(result);
-      if (!limits.success || accountNamespace + limits.data.accountId !== accountKey) return unavailable();
-      const { availableCount: count, credits } = limits.data.rateLimitResetCredits;
-      if (!includeExpiries || !Array.isArray(credits)) return finish({ count });
-
-      const expiries: (number | null)[] = [];
-      for (const row of credits) {
-        if (expiries.length === count) break;
-        const credit = availableCreditSchema.safeParse(row);
-        if (credit.success) expiries.push(credit.data.expiresAt);
-      }
-      finish({ count, expiries });
+      finish(parseResetResult(result, input));
     }
 
     child.once("close", unavailable);

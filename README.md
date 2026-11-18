@@ -2,7 +2,7 @@
 
 [Русский](README.ru.md)
 
-See how much of your OpenAI Codex subscription quota is left and when each limit resets. Hover over the teal ring beside the context meter in a BB thread.
+See how much of your OpenAI Codex subscription quota is left and when each limit resets. In a BB thread, hover over or tap the teal ring beside the context meter. In the compact phone layout, the ring sits beside the send controls.
 
 **Pro example.** Codex reports one weekly limit. The card shows how much is left and when it resets.
 
@@ -17,7 +17,7 @@ With 78% of the five-hour quota and 46% of the weekly quota left, the ring shows
 
 </details>
 
-The lightning bolt at the top right of the card shows how many manual resets are available, including zero. Hover over the bolt to see expiry dates. Viewing them never uses a reset. If Codex cannot report the count, the icon stays hidden.
+The lightning bolt at the top right of the card shows how many manual resets are available, including zero. Hover over the bolt or tap it to see when your resets expire. Viewing them never uses a reset. If Codex cannot report the count, the icon stays hidden.
 
 A **?** means usage is missing, at least 90 minutes old, or due for a new reading after a reset.
 
@@ -72,4 +72,4 @@ npm ci --ignore-scripts
 npm run check
 ```
 
-[Project map](INDEX.md) · [MIT license](LICENSE)
+[Quality checks](docs/QUALITY.md) · [Project map](INDEX.md) · [MIT license](LICENSE)
