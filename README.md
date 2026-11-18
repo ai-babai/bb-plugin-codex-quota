@@ -4,9 +4,9 @@
 
 See how much of your OpenAI Codex subscription quota is left and when each limit resets. Select Codex and a machine to see your quota before sending the first message. In a BB thread, hover over or tap the teal ring beside the context meter. In the compact phone layout, the ring sits beside the send controls.
 
-**Pro example.** Codex reports one weekly limit. The card shows how much is left and when it resets.
+**Pro in a BB chat.** In this example, 65% of the weekly quota remains and two manual resets are available.
 
-<img src="docs/screenshots/pro-weekly-en.png" width="480" alt="Codex Pro in BB: 65% of the weekly quota remains, with 2 days and 8 hours until reset">
+<img src="docs/screenshots/pro-weekly-en.png" width="480" alt="Codex Pro card above the teal quota ring beside the context meter, showing 65% left, 2 days and 8 hours until reset, and two available manual resets">
 
 <details>
 <summary>Compare with Plus — five-hour and weekly limits</summary>
