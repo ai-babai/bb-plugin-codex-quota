@@ -4,9 +4,20 @@
 
 See how much of your OpenAI Codex subscription quota is left and when each limit resets. Hover over the teal ring beside the context meter in a BB thread.
 
+**Pro example.** Codex reports one weekly limit. The card shows how much is left and when it resets.
+
+<img src="docs/screenshots/pro-weekly-en.png" width="480" alt="Codex Pro in BB: 65% of the weekly quota remains, with 2 days and 8 hours until reset">
+
+<details>
+<summary>Compare with Plus — five-hour and weekly limits</summary>
+
 <img src="marketplace/screenshots/codex-quota/footer-dark.png" width="480" alt="Codex Plus example in BB: 78% of the five-hour quota and 46% of the weekly quota remaining">
 
-The ring shows the lowest remaining percentage. In the example above, that’s **46%**. The card lists only the limits Codex reports for your account. A **?** means usage is missing, at least 90 minutes old, or due for a new reading after a reset.
+With 78% of the five-hour quota and 46% of the weekly quota left, the ring shows the lower value: **46%**.
+
+</details>
+
+A **?** means usage is missing, at least 90 minutes old, or due for a new reading after a reset.
 
 Click or tap to pin the card. **Enter** or **Space** opens it from the keyboard, and **Esc** closes it. Usage updates every two minutes while the page is visible. **Refresh** requests a new reading.
 
