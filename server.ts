@@ -1,5 +1,6 @@
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
+import { resetContract } from "./lib/reset-contract";
 
 const windowSchema = z.object({
   id: z.string(), label: z.string(), kind: z.enum(["five-hour", "daily", "weekly", "custom"]),
@@ -12,10 +13,11 @@ const quotaSchema = z.object({
 export type Quota = z.infer<typeof quotaSchema>;
 export type QuotaWindow = z.infer<typeof windowSchema>;
 export const rpcContract = defineRpcContract({
+  availableResets: { input: z.object({ threadId: z.string().min(1), includeExpiries: z.boolean().optional() }), output: resetContract.availableResets.output },
   quota: { input: z.object({ threadId: z.string().min(1), refresh: z.boolean().default(false) }), output: quotaSchema },
 });
 const resourcesSchema = z.object({ resources: z.array(z.object({
-  id: z.string(), providerId: z.string(), scope: z.object({ kind: z.string(), hostId: z.string().optional() }),
+  id: z.string(), providerId: z.string(), accountKey: z.string().nullish(), scope: z.object({ kind: z.string(), hostId: z.string().optional() }),
 })) });
 // Deliberately omit account identity, e-mail and credentials from our contract.
 const providerUsageSchema = z.object({ observedAt: z.number().nullable(), usage: z.object({
@@ -27,6 +29,16 @@ const providerUsageSchema = z.object({ observedAt: z.number().nullable(), usage:
 }) });
 
 export default function plugin(bb: BbPluginApi) {
+  const host = bb.hosts.experimental_client({ contract: resetContract });
+  async function findResource(threadId: string) {
+    const thread = await bb.sdk.threads.get({ threadId });
+    if (thread.providerId !== "codex" || !thread.environmentId) return null;
+    const { hostId } = await bb.sdk.environments.get({ environmentId: thread.environmentId });
+    const inventory = await bb.sdk.plugins.callRpc({ pluginId: "provider-codex",
+      method: "provider-usage.v1.listResources", input: {}, outputSchema: resourcesSchema });
+    const resource = inventory.resources.find(r => r.providerId === "codex" && r.scope.kind === "host" && r.scope.hostId === hostId);
+    return resource ? { resource, hostId } : null;
+  }
   bb.settings.define({
     language: {
       type: "select",
@@ -37,14 +49,20 @@ export default function plugin(bb: BbPluginApi) {
     },
   });
   bb.rpc.register(rpcContract, {
+    availableResets: async ({ threadId, includeExpiries = false }, context) => {
+      try {
+        const target = await findResource(threadId);
+        if (!target?.resource.accountKey) return { count: null };
+        return await host.call("availableResets", { accountKey: target.resource.accountKey, includeExpiries },
+          { hostId: target.hostId, signal: context.experimental_signal });
+      } catch {
+        return { count: null };
+      }
+    },
     quota: async ({ threadId, refresh }): Promise<Quota> => {
       try {
-        const thread = await bb.sdk.threads.get({ threadId });
-        if (thread.providerId !== "codex" || !thread.environmentId) return { account: null, error: "unavailable" };
-        const environment = await bb.sdk.environments.get({ environmentId: thread.environmentId });
-        const inventory = await bb.sdk.plugins.callRpc({ pluginId: "provider-codex",
-          method: "provider-usage.v1.listResources", input: {}, outputSchema: resourcesSchema });
-        const resource = inventory.resources.find((r) => r.providerId === "codex" && r.scope.kind === "host" && r.scope.hostId === environment.hostId);
+        const target = await findResource(threadId);
+        const resource = target?.resource;
         if (!resource) return { account: null, error: "unavailable" };
         const result = await bb.sdk.plugins.callRpc({ pluginId: "provider-codex",
           method: "provider-usage.v1.getResource", input: { resourceId: resource.id, refresh }, outputSchema: providerUsageSchema });

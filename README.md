@@ -17,6 +17,8 @@ With 78% of the five-hour quota and 46% of the weekly quota left, the ring shows
 
 </details>
 
+A lightning bolt beside the countdown shows how many manual resets are available, including zero. Hover over the bolt to see expiry dates. Viewing them never uses a reset. If Codex cannot report the count, the icon stays hidden.
+
 A **?** means usage is missing, at least 90 minutes old, or due for a new reading after a reset.
 
 Click the ring to close the card after hovering. Click again to reopen it. Tap the ring or press **Enter** or **Space** with the ring focused to open or close the card. **Esc** closes it. Usage updates every two minutes while the page is visible. **Refresh** requests a new reading.
@@ -49,7 +51,7 @@ bb plugin config codex-quota set language ru
 
 ## Privacy
 
-Usage comes from BB’s Codex provider. The plugin reads no credentials and sends no telemetry. The provider may contact its usage service on refresh.
+Quota windows come from BB’s Codex provider. With the card open, the plugin asks Codex CLI on the thread’s machine for the reset count using `account/rateLimits/read`. Only the count and requested expiry dates reach the UI after the accounts match. Codex handles sign-in. The plugin sends no telemetry.
 
 ## Development
 

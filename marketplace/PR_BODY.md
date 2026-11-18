@@ -14,8 +14,11 @@ is the `ai-babai` GitHub account.
 
 The plugin runs with BB's plugin trust and reads the bundled Codex provider's
 public usage RPC for the thread's execution machine. Manual refresh may cause
-that provider to contact its usage service. The plugin leaves credential
-handling to the provider and excludes account keys, email addresses and
+that provider to contact its usage service. When the card opens, a host entry
+runs Codex CLI’s app-server on the thread’s machine and calls the read-only
+`account/rateLimits/read` method for the manual reset count. The host verifies
+the account and returns only the count and requested expiry dates. The plugin leaves credential
+handling to Codex and excludes account keys, email addresses and
 provider error bodies from its browser response. It requires BB 0.49+ with
 Plugin SDK 0.6.132+ in the 0.x series, the bundled Codex provider, and Codex CLI
 signed in to a ChatGPT subscription. Footer placement uses a content script
@@ -30,7 +33,7 @@ The overview is copied byte for byte from the plugin repository's
 `PLUGIN_OVERVIEW.md`.
 
 Local plugin validation passed with `npm run check`, including TypeScript,
-21 tests, the BB build and the package dry-run check. Marketplace validation
+behavioral tests, the BB build and the package dry-run check. Marketplace validation
 passed with `npm run build`, `npm test` (47 tests and a mocked retry check),
 and `npm run gate:v1`. The v1 gate found one new entry.
 

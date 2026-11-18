@@ -8,6 +8,6 @@ Click the ring to close the card after hovering. Click again to reopen it. Tap t
 
 Requires BB 0.49+, Plugin SDK 0.6.132 or later in the 0.x series, and BB’s bundled Codex provider. Sign in to Codex CLI on the machine running the thread with a ChatGPT plan that includes Codex. Choose English or Russian in the plugin settings.
 
-The plugin reads usage from BB’s provider. It reads no credentials and sends no telemetry.
+Quota windows come from BB’s provider. While the card is open, the plugin reads the available manual reset count from Codex CLI on the thread’s machine. Hover over the lightning bolt for expiry dates. Viewing them never uses a reset. The plugin reads no credentials and sends no telemetry.
 
 [Installation and source code](https://github.com/ai-babai/bb-plugin-codex-quota)

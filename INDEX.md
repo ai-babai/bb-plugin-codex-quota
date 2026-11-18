@@ -16,6 +16,7 @@ The GitHub READMEs begin with their visible heading because GitHub displays YAML
 
 - [app.tsx](app.tsx) — thread-scoped quota indicator and window display.
 - [server.ts](server.ts) — host-scoped Codex usage RPC adapter.
+- [host.ts](host.ts) — read the count and expiry dates of available manual resets from Codex CLI on the thread’s machine.
 - [lib/usage-footer.ts](lib/usage-footer.ts) — footer placement and cleanup.
 - [lib/quota-popover.tsx](lib/quota-popover.tsx) — hover, click and keyboard behavior.
 

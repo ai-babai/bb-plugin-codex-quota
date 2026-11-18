@@ -13,6 +13,7 @@
       "icon": "./assets/icon.svg"
     },
     "server": "./server.ts",
+    "host": "./host.ts",
     "app": "./app.tsx",
     "skills": []
   },
@@ -75,6 +76,9 @@
   "files": [
     "app.tsx",
     "server.ts",
+    "host.ts",
+    "lib/reset-count.tsx",
+    "lib/reset-contract.ts",
     "lib/format.ts",
     "lib/portal-scope.ts",
     "lib/quota-popover.tsx",
@@ -85,6 +89,8 @@
     "dist/app.js",
     "dist/app.meta.json",
     "dist/package.json",
+    "dist/host.js",
+    "dist/host.meta.json",
     "dist/server.js",
     "dist/server.meta.json",
     "tsconfig.json",

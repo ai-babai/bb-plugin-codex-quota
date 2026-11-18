@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { ResetCount } from "./lib/reset-count";
 import { QuotaPopover } from "./lib/quota-popover";
-import { definePluginApp, useComposer, useSettings } from "@get-bb/plugin-sdk/app";
+import { definePluginApp, experimental_Icon as Icon, useComposer, useSettings } from "@get-bb/plugin-sdk/app";
 import { mountUsageFooter } from "./lib/usage-footer";
 import { getQuotaFormat, isFresh } from "./lib/format";
 import type { QuotaWindow } from "./server";
@@ -9,11 +10,12 @@ import { useQuota } from "./lib/use-quota";
 
 const trackClass = "flex h-1.5 w-full justify-end overflow-hidden rounded-full bg-border";
 
-function WindowRow({ window, fresh, now, format }: {
+function WindowRow({ window, fresh, now, format, resetCount }: {
   window: QuotaWindow;
   fresh: boolean;
   now: number;
   format: ReturnType<typeof getQuotaFormat>;
+  resetCount?: ReactNode;
 }) {
   const { text, percent, formatDate, formatCountdown } = format;
   const label = window.kind === "five-hour" ? text.fiveHour : window.kind === "daily" ? text.daily : window.kind === "weekly" ? text.weekly : window.label;
@@ -35,15 +37,18 @@ function WindowRow({ window, fresh, now, format }: {
       aria-valuenow={window.remaining} aria-valuetext={remainingLabel} className={trackClass}>
       <div className={`h-full rounded-full ${tone}`} style={{ width: `${window.remaining}%` }} />
     </div>
-    {untilReset !== null && <div className="grid gap-1 text-muted-foreground tabular-nums">
+    {untilReset !== null ? <div className="grid gap-1 text-muted-foreground tabular-nums">
       <div className="flex flex-wrap items-baseline justify-between gap-x-2">
         <span>{text.reset}</span><time dateTime={window.resetsAt!}>{formatDate(window.resetsAt!)}</time>
       </div>
       {timePercent !== null && <div aria-hidden="true" className={trackClass}>
         <div className="h-full rounded-full bg-muted-foreground/50" style={{ width: `${timePercent}%` }} />
       </div>}
-      <span className="text-end">{untilReset === 0 ? text.waiting : formatCountdown(untilReset)}</span>
-    </div>}
+      <div className="flex items-center gap-2">
+        {resetCount}
+        <span className="ml-auto text-end">{untilReset === 0 ? text.waiting : formatCountdown(untilReset)}</span>
+      </div>
+    </div> : resetCount}
   </div>;
 }
 function QuotaDisk() {
@@ -74,6 +79,8 @@ function ThreadQuota({ threadId }: { threadId: string }) {
   const current = fresh && windows.length > 0 && !windows.some((w) => w.resetsAt && Date.parse(w.resetsAt) <= now);
   const remaining = current ? Math.min(...windows.map((w) => w.remaining)) : null;
   const label = `${text.title}: ${remaining === null ? text.unavailable : `${percent.format(remaining)}% ${text.remaining}`}`;
+  const resetCount = data && account && fresh
+    ? <ResetCount threadId={threadId} quota={data} format={format} /> : null;
   const disk = <QuotaPopover label={label} title={text.title} trigger={
     <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
       <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="4" opacity="0.18" />
@@ -83,10 +90,13 @@ function ThreadQuota({ threadId }: { threadId: string }) {
   }>
     <div className="flex items-baseline justify-between gap-2">
       <h3 className="min-w-0 wrap-anywhere font-medium">Codex{account?.plan ? ` · ${account.plan}` : ""}</h3>
-      <button type="button" disabled={loading} onClick={() => void load(true)} className="-my-1 -mr-1 shrink-0 cursor-pointer rounded px-1 py-1 text-muted-foreground hover:bg-state-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">{loading ? text.refreshing : text.refresh}</button>
+      <button type="button" aria-label={loading ? text.refreshing : text.refresh} title={text.refresh} disabled={loading} onClick={() => void load(true)} className="-my-1 -mr-1 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-state-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
+        <Icon name="RotateCcw" aria-hidden="true" className={loading ? "size-3.5 motion-safe:animate-spin" : "size-3.5"} />
+      </button>
     </div>
     {data?.error || (account && windows.length === 0) ? <p role="status" className="text-muted-foreground">{text.unavailable}</p>
-      : account ? windows.map((window) => <WindowRow key={window.id} window={window} fresh={fresh} now={now} format={format} />)
+      : account ? windows.map((window, index) => <WindowRow key={window.id} window={window} fresh={fresh} now={now} format={format}
+        resetCount={index === windows.length - 1 ? resetCount : null} />)
       : <p role="status" className="text-muted-foreground">{text.loading}</p>}
   </QuotaPopover>;
   return <><span ref={origin} data-codex-quota-origin="" className="hidden" />{target ? createPortal(disk, target) : null}</>;

@@ -26,6 +26,7 @@ const windows = [
 const unavailable = { account: null, error: "unavailable" };
 const refreshFailed = { account: null, error: "refresh_failed" };
 
+const readHost = vi.fn();
 const getThread = vi.fn();
 const getEnvironment = vi.fn();
 const listResources = vi.fn();
@@ -33,6 +34,7 @@ const getResource = vi.fn();
 let host: ReturnType<typeof createFakePluginHost>;
 
 beforeEach(() => {
+  readHost.mockReset();
   getThread.mockReset().mockResolvedValue({ providerId: "codex", environmentId });
   getEnvironment.mockReset().mockResolvedValue({ hostId });
   listResources.mockReset().mockResolvedValue({ resources: [resource] });
@@ -44,6 +46,7 @@ beforeEach(() => {
 
   host = createFakePluginHost({
     pluginId: "codex-quota",
+    experimental_callHostRpc: readHost,
     sdk: {
       threads: { get: getThread },
       environments: { get: getEnvironment },
@@ -171,5 +174,35 @@ describe("quota RPC", () => {
     await expect(host.harness.behavior.callRpc("quota", { threadId, refresh: true }))
       .resolves.toStrictEqual(refreshFailed);
     expect(getResource).toHaveBeenCalledExactlyOnceWith({ resourceId: resource.id, refresh: true });
+  });
+});
+
+describe("available manual resets", () => {
+  it.each([0, 3])("returns only the available count (%i) from the thread host", async count => {
+    readHost.mockResolvedValue({ count });
+    await expect(host.harness.behavior.callRpc("availableResets", { threadId })).resolves.toEqual({ count });
+    expect(readHost).toHaveBeenCalledWith(expect.objectContaining({
+      method: "availableResets", hostId, input: { accountKey, includeExpiries: false },
+    }));
+  });
+
+  it("requests expiration dates only when asked", async () => {
+    const summary = { count: 2, expiries: [1_800_000_000, null] };
+    readHost.mockResolvedValue(summary);
+    await expect(host.harness.behavior.callRpc("availableResets", { threadId, includeExpiries: true })).resolves.toEqual(summary);
+    expect(readHost).toHaveBeenCalledWith(expect.objectContaining({ hostId, input: { accountKey, includeExpiries: true } }));
+  });
+
+  it("skips the host when BB cannot identify the account", async () => {
+    listResources.mockResolvedValue({ resources: [{ ...resource, accountKey: null }] });
+    await expect(host.harness.behavior.callRpc("availableResets", { threadId })).resolves.toEqual({ count: null });
+    expect(readHost).not.toHaveBeenCalled();
+  });
+
+  it("keeps the quota available when the reset lookup fails", async () => {
+    readHost.mockRejectedValue(new Error(providerError));
+    await expect(host.harness.behavior.callRpc("availableResets", { threadId })).resolves.toEqual({ count: null });
+    await expect(host.harness.behavior.callRpc("quota", { threadId })).resolves.toMatchObject({ account: { plan: "Pro" } });
+    expect(readHost).toHaveBeenCalledTimes(1);
   });
 });
