@@ -14,7 +14,6 @@ export function QuotaPopover({ label, title, trigger, children }: QuotaPopoverPr
   const [mode, setMode] = useState<"closed" | "hover" | "pinned">("closed");
   const closeTimer = useRef<number | undefined>(undefined);
   const passive = useRef(false);
-  const content = useRef<HTMLDivElement>(null);
 
   function cancelClose() {
     window.clearTimeout(closeTimer.current);
@@ -35,7 +34,7 @@ export function QuotaPopover({ label, title, trigger, children }: QuotaPopoverPr
     setMode(open ? "pinned" : "closed");
   }}>
     <Popover.Trigger aria-label={label}
-      className="inline-flex size-6 shrink-0 items-center justify-center rounded-full text-teal-600 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-teal-400"
+      className="-m-1 inline-flex size-8 shrink-0 cursor-pointer select-none items-center justify-center rounded-full text-teal-600 transition-colors hover:bg-state-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-teal-400"
       onPointerEnter={event => {
         cancelClose();
         if (event.pointerType !== "touch" && mode === "closed") {
@@ -43,19 +42,11 @@ export function QuotaPopover({ label, title, trigger, children }: QuotaPopoverPr
           setMode("hover");
         }
       }}
-      onPointerLeave={closeAfterLeave}
-      onClick={event => {
-        if (mode !== "hover") return;
-        event.preventDefault(); // Pin the visible preview instead of toggling it shut.
-        cancelClose();
-        passive.current = false;
-        setMode("pinned");
-        if (event.detail === 0) content.current?.focus();
-      }}>
+      onPointerLeave={closeAfterLeave}>
       {trigger}
     </Popover.Trigger>
     <Popover.Portal>
-      <Popover.Content {...scope} ref={content} tabIndex={-1} side="top" align="end" sideOffset={8}
+      <Popover.Content {...scope} tabIndex={-1} side="top" align="end" sideOffset={8}
         aria-label={title} onPointerEnter={cancelClose} onPointerLeave={closeAfterLeave}
         onOpenAutoFocus={event => { if (passive.current) event.preventDefault(); }}
         onCloseAutoFocus={event => { if (passive.current) event.preventDefault(); }}

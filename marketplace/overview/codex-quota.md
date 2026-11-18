@@ -2,7 +2,7 @@
 
 Hover over the teal ring beside the context meter in a BB thread. The card shows each limit your Codex account reports and when it resets. If 78% of your five-hour quota and 46% of your weekly quota remain, the ring shows 46%.
 
-Click or tap to pin the card. Usage updates every two minutes while the page is visible. **Refresh** requests a new reading. A question mark means the plugin is waiting for current data.
+Click the ring to close the card after hovering. Click again to reopen it. Tap the ring or press **Enter** or **Space** with the ring focused to open or close the card. **Esc** closes it. Usage updates every two minutes while the page is visible. **Refresh** requests a new reading. A question mark means the plugin is waiting for current data.
 
 ## Setup
 

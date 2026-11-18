@@ -19,7 +19,7 @@ With 78% of the five-hour quota and 46% of the weekly quota left, the ring shows
 
 A **?** means usage is missing, at least 90 minutes old, or due for a new reading after a reset.
 
-Click or tap to pin the card. **Enter** or **Space** opens it from the keyboard, and **Esc** closes it. Usage updates every two minutes while the page is visible. **Refresh** requests a new reading.
+Click the ring to close the card after hovering. Click again to reopen it. Tap the ring or press **Enter** or **Space** with the ring focused to open or close the card. **Esc** closes it. Usage updates every two minutes while the page is visible. **Refresh** requests a new reading.
 
 ## Installation
 

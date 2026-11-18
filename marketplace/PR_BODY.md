@@ -34,7 +34,6 @@ Local plugin validation passed with `npm run check`, including TypeScript,
 passed with `npm run build`, `npm test` (47 tests and a mocked retry check),
 and `npm run gate:v1`. The v1 gate found one new entry.
 
-Public source validation is pending. The GitHub repository is private and
-has no release tags. Before opening the PR, verify that the public `v0.1.0`
+Public source validation is pending. Before opening the PR, verify that the public `v0.1.0`
 tag resolves to the approved plugin commit and rerun marketplace
 `npm run check` against the source in the entry.

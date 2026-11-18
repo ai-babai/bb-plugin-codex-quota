@@ -96,23 +96,24 @@ describe("QuotaPopover interactions", () => {
     expect(document.activeElement).toBe(composer);
   });
 
-  it("pins an open preview on click and closes it on the next click", async () => {
+  it("closes the hover preview on click and reopens it on the next click", async () => {
     const { composer, trigger } = renderQuota();
     moveMouse(composer, trigger);
     expect(screen.getByRole("button", refreshButton)).toBeTruthy();
 
     fireEvent.click(trigger, { detail: 1 });
+    await settleTimers();
+    expect(screen.queryByRole("button", refreshButton)).toBeNull();
+
+    fireEvent.click(trigger, { detail: 1 });
+    expect(screen.getByRole("button", refreshButton)).toBeTruthy();
+
     moveMouse(trigger, composer);
     await settleTimers();
     expect(screen.getByRole("button", refreshButton)).toBeTruthy();
-
-    moveMouse(composer, trigger);
-    fireEvent.click(trigger, { detail: 1 });
-    await settleTimers();
-    expect(screen.queryByRole("button", refreshButton)).toBeNull();
   });
 
-  it("opens and pins on tap, then closes on a second tap", async () => {
+  it("opens on tap and closes on a second tap", async () => {
     const { composer, trigger } = renderQuota();
 
     function tapTrigger() {
@@ -139,19 +140,33 @@ describe("QuotaPopover interactions", () => {
   it.each([
     { name: "Enter", key: "Enter", code: "Enter", activateOn: "keydown" },
     { name: "Space", key: " ", code: "Space", activateOn: "keyup" },
-  ])("pins with $name and restores trigger focus after Escape", async ({ key, code, activateOn }) => {
+  ])("opens and closes with $name and restores trigger focus after Escape", async ({ key, code, activateOn }) => {
     const { composer, trigger } = renderQuota();
     expect(trigger).toBeInstanceOf(HTMLButtonElement);
     act(() => trigger.focus());
     expect(document.activeElement).toBe(trigger);
 
-    // jsdom does not generate the native button click from keyboard events.
-    const keyDownAllowed = fireEvent.keyDown(trigger, { key, code });
-    if (activateOn === "keydown" && keyDownAllowed) fireEvent.click(trigger, { detail: 0 });
-    const keyUpAllowed = fireEvent.keyUp(trigger, { key, code });
-    if (activateOn === "keyup" && keyDownAllowed && keyUpAllowed) {
-      fireEvent.click(trigger, { detail: 0 });
+    function activateTrigger() {
+      // jsdom does not generate the native button click from keyboard events.
+      const keyDownAllowed = fireEvent.keyDown(trigger, { key, code });
+      if (activateOn === "keydown" && keyDownAllowed) fireEvent.click(trigger, { detail: 0 });
+      const keyUpAllowed = fireEvent.keyUp(trigger, { key, code });
+      if (activateOn === "keyup" && keyDownAllowed && keyUpAllowed) {
+        fireEvent.click(trigger, { detail: 0 });
+      }
     }
+
+    activateTrigger();
+    expect(screen.getByRole("button", refreshButton)).toBeTruthy();
+    await settleTimers();
+
+    act(() => trigger.focus());
+    activateTrigger();
+    await settleTimers();
+    expect(screen.queryByRole("button", refreshButton)).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+
+    activateTrigger();
     expect(screen.getByRole("button", refreshButton)).toBeTruthy();
 
     moveMouse(composer, trigger);
