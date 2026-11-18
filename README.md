@@ -6,7 +6,7 @@ See how much of your OpenAI Codex subscription quota is left and when each limit
 
 **Pro in a BB chat.** In this example, 65% of the weekly quota remains and two manual resets are available.
 
-<img src="docs/screenshots/pro-weekly-en.png" width="480" alt="Codex Pro card above the teal quota ring beside the context meter, showing 65% left, 2 days and 8 hours until reset, and two available manual resets">
+<img src="docs/screenshots/pro-weekly-en.png" width="752" alt="Codex Pro card above the teal quota ring beside the context meter, showing 65% left, 2 days and 8 hours until reset, and two available manual resets">
 
 <details>
 <summary>Compare with Plus — five-hour and weekly limits</summary>
