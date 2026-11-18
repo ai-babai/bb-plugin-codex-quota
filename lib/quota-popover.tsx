@@ -50,7 +50,7 @@ export function QuotaPopover({ label, title, trigger, children }: QuotaPopoverPr
         aria-label={title} onPointerEnter={cancelClose} onPointerLeave={closeAfterLeave}
         onOpenAutoFocus={event => { if (passive.current) event.preventDefault(); }}
         onCloseAutoFocus={event => { if (passive.current) event.preventDefault(); }}
-        className="z-50 w-72 max-w-[calc(100vw-2rem)] rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-md outline-none
+        className="z-50 grid w-56 max-w-[calc(100vw-2rem)] gap-2 rounded-md border border-border bg-popover p-2 text-xs text-popover-foreground shadow-md outline-none
           data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95
           data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95
           motion-reduce:animate-none!">
