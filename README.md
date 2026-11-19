@@ -35,7 +35,7 @@ The **Settings** gear beside the plan name opens **Refresh**, **In chat** and **
 
 <img src="docs/screenshots/sidebar-en.png" width="600" alt="Left sidebar in BB with the Codex Pro quota card on the left and its refresh and placement settings on the right">
 
-Quota updates every two minutes while the page is visible. Hovering over or pressing the ring also requests fresh data by default. In **Settings → Installed plugins → Codex Quota**, you can restore either ring, change those refresh triggers, or set **Language** to **English** (default) or **Русский**.
+Opening a Codex chat refreshes its quota once, even with the timer off. By default, quota then updates every two minutes while the page is visible. Hovering over or pressing the ring also requests fresh data by default. In **Settings → Installed plugins → Codex Quota**, you can restore either ring, change those refresh triggers, or set **Language** to **English** (default) or **Русский**.
 
 <details>
 <summary>Language and refresh interval from the CLI</summary>

@@ -1,14 +1,26 @@
 // @vitest-environment jsdom
 import { act, renderHook, cleanup } from "@testing-library/react";
+import { createContext, createElement, useContext, type PropsWithChildren } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { useQuota, useQuotaProviders } from "../lib/use-quota";
 import type { Quota } from "../server";
 
 const rpc = vi.hoisted(() => ({ call: vi.fn() }));
-const client = vi.hoisted(() => ({ current: {} as { call: ReturnType<typeof vi.fn> } }));
+type TestRpcClient = { call: typeof rpc.call };
+const client = vi.hoisted(() => ({ current: {} as TestRpcClient }));
+const rpcContext = createContext<TestRpcClient | null>(null);
 const location = { threadId: "thread-a" };
+const codex = { ...location, providerId: "codex" };
 
-vi.mock("@get-bb/plugin-sdk/app", () => ({ useRpc: () => client.current, useRealtimeConnectionState: () => "connected" }));
+vi.mock("@get-bb/plugin-sdk/app", () => ({
+  useRpc: () => useContext(rpcContext) ?? client.current,
+  useRealtimeConnectionState: () => "connected",
+}));
+
+function rpcWrapper() {
+  const value = { call: rpc.call };
+  return ({ children }: PropsWithChildren) => createElement(rpcContext.Provider, { value }, children);
+}
 
 beforeEach(() => { client.current = { call: rpc.call }; });
 
@@ -83,6 +95,67 @@ it("skips scheduled reads while hidden and resumes with a cached read", async ()
   await act(() => vi.advanceTimersByTimeAsync(2_000));
   expect(rpc.call).toHaveBeenCalledTimes(3);
   expect(rpc.call).toHaveBeenLastCalledWith("quota", { threadId: "thread-a", refresh: true });
+});
+
+it("reads cached quota on startup for a third-party provider", async () => {
+  const thirdParty = { ...location, providerId: "third-party" };
+  const quota: Quota = { account: { plan: "Pro", observedAt: 500, windows: [] }, error: null };
+  rpc.call.mockResolvedValue(quota);
+  const { result } = renderHook(() => useQuota(thirdParty, 0));
+
+  await act(async () => {});
+  expect(rpc.call).toHaveBeenCalledExactlyOnceWith("quota", { ...thirdParty, refresh: false });
+  expect(result.current.data).toEqual(quota);
+});
+
+it("shares an in-flight Codex startup refresh and uses a cached read for a later ring", async () => {
+  let finishRefresh!: (value: Quota) => void;
+  rpc.call.mockReturnValueOnce(new Promise<Quota>(resolve => { finishRefresh = resolve; }));
+  const fresh: Quota = { account: { plan: "Pro", observedAt: 500, windows: [] }, error: null };
+  const cached: Quota = { account: { plan: "Pro", observedAt: 400, windows: [] }, error: null };
+  rpc.call.mockResolvedValueOnce(cached);
+  const sidebarLocation = { ...codex };
+  const chat = renderHook(() => useQuota(codex, 0), { wrapper: rpcWrapper() });
+  const sidebar = renderHook(() => useQuota(sidebarLocation, 0, true), { wrapper: rpcWrapper() });
+
+  expect(rpc.call).toHaveBeenCalledExactlyOnceWith("quota", { ...codex, refresh: true });
+  await act(async () => { finishRefresh(fresh); });
+  expect(chat.result.current.data).toEqual(fresh);
+  expect(sidebar.result.current.data).toEqual(fresh);
+  expect(rpc.call).toHaveBeenCalledTimes(1);
+
+  sidebar.unmount();
+  const reopenedSidebar = renderHook(() => useQuota(sidebarLocation, 0), { wrapper: rpcWrapper() });
+  await act(async () => {});
+  expect(rpc.call).toHaveBeenCalledTimes(2);
+  expect(rpc.call).toHaveBeenLastCalledWith("quota", { ...codex, refresh: false });
+  expect(reopenedSidebar.result.current.data).toEqual(cached);
+});
+
+it("reads cached Codex quota until the provider is confirmed", async () => {
+  rpc.call.mockResolvedValue({ account: null, error: "unavailable" } satisfies Quota);
+  const { rerender } = renderHook(({ confirmed }) => useQuota(codex, 0, confirmed), {
+    initialProps: { confirmed: false },
+  });
+
+  await act(async () => {});
+  expect(rpc.call).toHaveBeenCalledExactlyOnceWith("quota", { ...codex, refresh: false });
+
+  await act(async () => rerender({ confirmed: true }));
+  expect(rpc.call).toHaveBeenCalledTimes(2);
+  expect(rpc.call).toHaveBeenLastCalledWith("quota", { ...codex, refresh: true });
+});
+
+it("starts a fresh read when the confirmed Codex scope changes", async () => {
+  const next = { ...codex, threadId: "thread-b" };
+  rpc.call.mockResolvedValue({ account: null, error: "unavailable" } satisfies Quota);
+  const { rerender } = renderHook(({ scope }) => useQuota(scope, 0), { initialProps: { scope: codex } });
+
+  await act(async () => rerender({ scope: next }));
+  expect(rpc.call.mock.calls).toEqual([
+    ["quota", { ...codex, refresh: true }],
+    ["quota", { ...next, refresh: true }],
+  ]);
 });
 
 it("shares one provider discovery in flight across three visible surfaces", async () => {

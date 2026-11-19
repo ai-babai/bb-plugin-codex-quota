@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ResetCount, useAvailableResetCount } from "./lib/reset-count";
-import { environmentLocation, registerSidebarQuota } from "./lib/sidebar-quota";
+import { environmentLocation, registerSidebarQuota, useStableLocation } from "./lib/sidebar-quota";
 import { QuotaSettingsCard } from "./lib/quota-settings";
 import { QuotaPopover } from "./lib/quota-popover";
 import { definePluginApp, useComposer, useSettings } from "@get-bb/plugin-sdk/app";
@@ -78,10 +78,8 @@ function DraftQuotaDisk() {
   const environment = selection?.environment;
   const providerId = selection?.providerId;
   const providers = useQuotaProviders(providerId, values?.showInChat !== false);
-  const location = useMemo(() => {
-    const scope = environmentLocation(environment);
-    return scope && providerId ? { ...scope, providerId } : null;
-  }, [environment, providerId]);
+  const scope = environmentLocation(environment);
+  const location = useStableLocation(scope && providerId ? { ...scope, providerId } : null);
   const provider = providers.find(item => item.id === providerId);
   if (!location || !provider) return null;
   return <QuotaFooter key={JSON.stringify(location)} location={location} provider={provider} />;
@@ -159,10 +157,10 @@ function QuotaRing({ remaining }: { remaining: number | null }) {
 
 type QuotaSurface = "chat" | "sidebar";
 
-function ComposerQuota({ location, provider, surface = "chat" }: { location: QuotaLocation; provider: QuotaProvider; surface?: QuotaSurface }) {
+function ComposerQuota({ location, provider, surface = "chat", confirmedProvider = true }: { location: QuotaLocation; provider: QuotaProvider; surface?: QuotaSurface; confirmedProvider?: boolean }) {
   const { values } = useSettings();
   const interval = values?.refreshIntervalSeconds;
-  const { data, now, load } = useQuota(location, typeof interval === "number" ? interval : undefined);
+  const { data, now, load } = useQuota(location, typeof interval === "number" ? interval : undefined, confirmedProvider);
   const fresh = isFresh(data?.account?.observedAt ?? null, now);
   const count = useAvailableResetCount(location, data, fresh, provider.capabilities.resets);
   return <QuotaCard surface={surface} provider={provider} location={location} data={data} now={now} fresh={fresh} count={count}

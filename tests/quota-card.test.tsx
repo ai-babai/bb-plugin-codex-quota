@@ -92,6 +92,7 @@ it("uses the saved language and refresh triggers and marks elapsed windows stale
   respondWith(quota([windowData("weekly", 10, -1), windowData("daily", 20, 3)]));
   showDisk();
   const ring = await screen.findByRole("button", { name: "Подписка Codex: Лимиты недоступны" });
+  rpc.call.mockClear();
   fireEvent.pointerOver(ring, { pointerType: "mouse" });
   expect(await screen.findByText("Ожидаем обновления квоты")).toBeTruthy();
   expect(screen.getByText("10% осталось · устарело")).toBeTruthy();
@@ -142,17 +143,17 @@ it("shows the selected machine’s limits before the first prompt and clears the
   const view = render(draft());
   const ring = await screen.findByRole("button", { name: /65% left/ });
   expect(screen.getByRole("button", { name: "Permission mode" }).nextElementSibling?.contains(ring)).toBe(true);
-  expect(rpc.call).toHaveBeenCalledWith("quota", { hostId: "host-a", providerId: "codex", refresh: false });
+  expect(rpc.call).toHaveBeenCalledWith("quota", { hostId: "host-a", providerId: "codex", refresh: true });
   composer.selection.environment = { type: "reuse", environmentId: "env-b" };
   respondWith(quota([windowData("weekly", 20, 52)]));
   view.rerender(draft());
   expect(screen.queryByRole("button", { name: /65% left/ })).toBeNull();
   await screen.findByRole("button", { name: /20% left/ });
-  expect(rpc.call).toHaveBeenCalledWith("quota", { environmentId: "env-b", providerId: "codex", refresh: false });
+  expect(rpc.call).toHaveBeenCalledWith("quota", { environmentId: "env-b", providerId: "codex", refresh: true });
   composer.selection.environment = { type: "host", hostId: "host-c", workspace: { type: "personal" } };
   view.rerender(draft());
   await screen.findByRole("button", { name: /20% left/ });
-  expect(rpc.call).toHaveBeenCalledWith("quota", { hostId: "host-c", providerId: "codex", refresh: false });
+  expect(rpc.call).toHaveBeenCalledWith("quota", { hostId: "host-c", providerId: "codex", refresh: true });
   rpc.call.mockClear();
   composer.selection.environment = { type: "project-default" };
   view.rerender(draft());
