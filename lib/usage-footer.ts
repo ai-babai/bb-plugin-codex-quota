@@ -1,8 +1,25 @@
 import type { PluginContentScriptContext } from "@get-bb/plugin-sdk/app";
 
+const composerShell = '[data-app-composer-role][data-promptbox-shell]';
+const compactAnchor = 'data-codex-quota-footer-compact';
+
+type Placement = { before: boolean; sibling: Element; compact?: boolean };
+
+function findCollapsedAction(shell: Element) {
+  const row = shell.querySelector(
+    'form[data-promptbox][data-promptbox-compact][data-promptbox-collapsed] [data-promptbox-main] > [data-promptbox-action-row]',
+  );
+  return row?.closest(composerShell) === shell ? row : null;
+}
+
 function findPlacementTarget(origin: HTMLElement) {
-  const shell = origin.closest('[data-app-composer-role][data-promptbox-shell]');
+  const shell = origin.closest(composerShell);
   if (!shell) return null;
+  const action = findCollapsedAction(shell);
+  return action ? { before: true, sibling: action, compact: true } : findFooterTarget(shell);
+}
+
+function findFooterTarget(shell: Element): Placement | null {
   const composer = shell.querySelector(':scope > [data-follow-up-composer-anchor] > [data-follow-up-composer]');
   const footer = composer?.querySelector(':scope > [data-follow-up-composer-footer]')
     ?? shell.querySelector(':scope > [data-new-thread-footer]');
@@ -14,7 +31,8 @@ function findPlacementTarget(origin: HTMLElement) {
   return submit ? { before: true, sibling: submit } : null;
 }
 
-function placeBeside(anchor: HTMLElement, { before, sibling }: { before: boolean; sibling: Element }) {
+function placeBeside(anchor: HTMLElement, { before, sibling, compact = false }: Placement) {
+  anchor.toggleAttribute(compactAnchor, compact);
   if ((before ? sibling.previousElementSibling : sibling.nextElementSibling) === anchor) return false;
   if (before) sibling.before(anchor);
   else sibling.after(anchor);
@@ -26,6 +44,19 @@ function placeBeside(anchor: HTMLElement, { before, sibling }: { before: boolean
 export function mountUsageFooter({ pluginId }: PluginContentScriptContext) {
   const anchors = new Map<HTMLElement, HTMLElement>();
   let frame = 0;
+  const compactStyle = document.createElement("style");
+  compactStyle.textContent = `
+    [${compactAnchor}] {
+      flex-shrink: 0;
+      margin-inline: 4px;
+    }
+    [${compactAnchor}] > button {
+      width: 44px;
+      height: 44px;
+      margin: 0;
+    }
+  `;
+  document.head.append(compactStyle);
 
   function createAnchor(origin: HTMLElement) {
     const anchor = document.createElement("span");
@@ -69,13 +100,18 @@ export function mountUsageFooter({ pluginId }: PluginContentScriptContext) {
   const observer = new MutationObserver(() => {
     if (!frame) frame = requestAnimationFrame(() => { frame = 0; place(); });
   });
-  observer.observe(document.body, { childList: true, subtree: true });
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributeFilter: ["data-promptbox-compact", "data-promptbox-collapsed"],
+  });
   document.addEventListener("codex-quota:place-footer", request);
   place();
   return () => {
     observer.disconnect();
     cancelAnimationFrame(frame);
     document.removeEventListener("codex-quota:place-footer", request);
+    compactStyle.remove();
     for (const anchor of anchors.values()) anchor.remove();
     anchors.clear();
   };

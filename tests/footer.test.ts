@@ -3,6 +3,7 @@ import { expect, it, vi } from "vitest";
 import { mountUsageFooter } from "../lib/usage-footer";
 
 const anchorSelector = "[data-codex-quota-footer]";
+const compactAnchorSelector = "[data-codex-quota-footer-compact]";
 
 function makeComposer({ compact = false, showQuota = true, role = "primary" }: {
   compact?: boolean; showQuota?: boolean; role?: "primary" | "secondary";
@@ -15,8 +16,16 @@ function makeComposer({ compact = false, showQuota = true, role = "primary" }: {
     <div data-follow-up-composer-anchor>
       <div data-follow-up-composer>
         <div data-composer-box>
-          <form data-promptbox ${compact ? 'data-promptbox-compact' : ''}>
-            <div data-promptbox-action-row><div data-promptbox-submit-group></div></div>
+          <form data-promptbox ${compact ? 'data-promptbox-compact data-promptbox-collapsed' : ''}>
+            <div data-promptbox-main>
+              <div data-promptbox-input-region></div>
+              <div data-promptbox-action-row>
+                <div data-promptbox-standard-actions>
+                  <span><button aria-label="Start voice input"></button></span>
+                  <div data-promptbox-submit-group><button aria-label="Stop run"></button></div>
+                </div>
+              </div>
+            </div>
           </form>
         </div>
         <div data-follow-up-composer-footer>
@@ -31,6 +40,8 @@ function makeComposer({ compact = false, showQuota = true, role = "primary" }: {
   return {
     shell, footer, context,
     form: shell.querySelector("form")!,
+    input: shell.querySelector("[data-promptbox-input-region]")!,
+    actionRow: shell.querySelector("[data-promptbox-action-row]")!,
     submitGroup: shell.querySelector("[data-promptbox-submit-group]")!,
     origin: shell.querySelector("[data-codex-quota-origin]"),
   };
@@ -59,7 +70,7 @@ it("follows the context control across footer changes and cleans up on disposal"
     context.remove();
     requestPlacement();
     expect(footer.querySelector('button[aria-label="Permission mode"]')?.nextElementSibling).toBe(anchor);
-    expect(submitGroup.previousElementSibling).toBeNull();
+    expect(submitGroup.parentElement?.querySelector(anchorSelector)).toBeNull();
     footer.querySelector("button")!.remove();
     requestPlacement();
     expect(onPlaced).toHaveBeenLastCalledWith(expect.objectContaining({ detail: { origin, target: null } }));
@@ -90,7 +101,7 @@ it("uses the local permissions control until context appears, follows it, and re
   const dispose = mountFooter();
   try {
     expect(footer.querySelector("button")?.nextElementSibling?.matches(anchorSelector)).toBe(true);
-    expect(submitGroup.previousElementSibling).toBeNull();
+    expect(submitGroup.parentElement?.querySelector(anchorSelector)).toBeNull();
 
     footer.append(context);
     const anchor = await vi.waitFor(() => {
@@ -111,33 +122,81 @@ it("uses the local permissions control until context appears, follows it, and re
   }
 });
 
-it("moves one anchor between the compact submit group and the same composer's context control", async () => {
+it("moves one anchor between the collapsed input's action row and the composer footer", async () => {
   const layout = document.createElement("div");
-  const { shell, footer, context, form, submitGroup } = makeComposer({ compact: true });
+  const { shell, footer, context, form, input, actionRow } = makeComposer({ compact: true });
   const other = makeComposer();
   layout.append(shell, other.shell);
   document.body.append(layout);
   const dispose = mountFooter();
   try {
-    const anchor = submitGroup.previousElementSibling;
+    const anchor = input.nextElementSibling;
     const otherAnchor = other.context.previousElementSibling;
     expect(anchor?.matches(anchorSelector)).toBe(true);
+    expect(anchor?.matches(compactAnchorSelector)).toBe(true);
+    expect(anchor?.nextElementSibling).toBe(actionRow);
     expect(otherAnchor?.matches(anchorSelector)).toBe(true);
     expect(anchor).not.toBe(otherAnchor);
 
     form.removeAttribute("data-promptbox-compact");
     shell.querySelector("[data-follow-up-composer]")!.append(footer);
     await vi.waitFor(() => expect(context.previousElementSibling).toBe(anchor));
+    expect(anchor?.matches(compactAnchorSelector)).toBe(false);
 
     footer.remove();
     form.setAttribute("data-promptbox-compact", "");
-    await vi.waitFor(() => expect(submitGroup.previousElementSibling).toBe(anchor));
+    await vi.waitFor(() => expect(actionRow.previousElementSibling).toBe(anchor));
+    expect(anchor?.matches(compactAnchorSelector)).toBe(true);
     expect(other.context.previousElementSibling).toBe(otherAnchor);
     expect(shell.querySelectorAll(anchorSelector)).toHaveLength(1);
     expect(other.shell.querySelectorAll(anchorSelector)).toHaveLength(1);
   } finally {
     dispose();
     layout.remove();
+  }
+});
+
+it("keeps a draft's footer placement unless BB marks its input compact and collapsed", async () => {
+  const { shell, form, context, footer, actionRow } = makeComposer();
+  shell.append(form, footer);
+  footer.setAttribute("data-new-thread-footer", "");
+  shell.querySelector("[data-follow-up-composer-anchor]")!.remove();
+  document.body.append(shell);
+  const dispose = mountFooter();
+  try {
+    const anchor = context.previousElementSibling;
+    expect(anchor?.matches(anchorSelector)).toBe(true);
+
+    form.setAttribute("data-promptbox-compact", "");
+    form.setAttribute("data-promptbox-collapsed", "");
+    await vi.waitFor(() => expect(actionRow.previousElementSibling).toBe(anchor));
+
+    form.removeAttribute("data-promptbox-collapsed");
+    await vi.waitFor(() => expect(context.previousElementSibling).toBe(anchor));
+    expect(anchor?.matches(compactAnchorSelector)).toBe(false);
+  } finally {
+    dispose();
+    shell.remove();
+  }
+});
+
+it.each([
+  ['stop only', '<div data-promptbox-submit-group><button aria-label="Stop run"></button></div>'],
+  ['voice submit', '<span><button data-promptbox-submit-action aria-label="Start voice input"></button></span>'],
+])("keeps a single ring after the editor with %s", (_, controls) => {
+  const { shell, input, actionRow } = makeComposer({ compact: true });
+  actionRow.querySelector("[data-promptbox-standard-actions]")!.innerHTML = controls;
+  document.body.append(shell);
+  const dispose = mountFooter();
+  try {
+    const anchor = input.nextElementSibling;
+    expect(anchor?.matches(compactAnchorSelector)).toBe(true);
+    expect(anchor?.nextElementSibling).toBe(actionRow);
+    requestPlacement();
+    expect(shell.querySelectorAll(anchorSelector)).toHaveLength(1);
+  } finally {
+    dispose();
+    shell.remove();
   }
 });
 
@@ -187,7 +246,7 @@ it("keeps simultaneous main and side quotas local across layout changes, closure
   try {
     const mainAnchor = main.context.previousElementSibling;
     const sideAnchor = side.context.previousElementSibling;
-    const compactAnchor = compactSide.submitGroup.previousElementSibling;
+    const compactAnchor = compactSide.actionRow.previousElementSibling;
     expect(layout.querySelectorAll(anchorSelector)).toHaveLength(3);
     expect(new Set([mainAnchor, sideAnchor, compactAnchor]).size).toBe(3);
 
