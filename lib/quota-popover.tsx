@@ -85,7 +85,7 @@ export function QuotaPopover({ label, title, trigger, children, onRefresh, surfa
     <Popover.Portal>
       <Popover.Content {...scope} tabIndex={-1}
         side={surface === "sidebar" ? "right" : "top"} align="end"
-        sideOffset={8} collisionPadding={surface === "sidebar" ? 8 : 0}
+        sideOffset={surface === "sidebar" ? 1 : 8} collisionPadding={surface === "sidebar" ? 8 : 0}
         style={surface === "sidebar" ? {
           maxWidth: "min(calc(100vw - 2rem), var(--radix-popover-content-available-width))",
         } : undefined}

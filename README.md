@@ -4,14 +4,14 @@
 
 See how much of your OpenAI Codex subscription quota is left and when each limit resets. Select Codex and a machine to see your quota before sending the first message. In a BB thread, hover over or tap the teal ring beside the context meter. In the compact phone layout, the ring sits beside the send controls.
 
-**Pro in a BB chat.** In this example, 65% of the weekly quota remains and two manual resets are available.
+**Pro in a BB chat.** In this example, 65% of the weekly quota remains and three manual resets are available.
 
-<img src="docs/screenshots/pro-weekly-en.png" width="752" alt="Codex Pro card above the teal quota ring beside the context meter, showing 65% left, 2 days and 8 hours until reset, and two available manual resets">
+<img src="docs/screenshots/pro-weekly-en.png" width="752" alt="Codex Pro card above the teal quota ring beside the context meter, showing 65% left, 2 days and 8 hours until reset, and three available manual resets">
 
 <details>
 <summary>Compare with Plus — five-hour and weekly limits</summary>
 
-<img src="marketplace/screenshots/codex-quota/footer-dark.png" width="480" alt="Codex Plus example in BB: 78% of the five-hour quota and 46% of the weekly quota remaining">
+<img src="marketplace/screenshots/codex-quota/footer-dark.png" width="752" alt="Codex Plus example in BB: 78% of the five-hour quota and 46% of the weekly quota remaining">
 
 With 78% of the five-hour quota and 46% of the weekly quota left, the ring shows the lower value: **46%**.
 
@@ -49,7 +49,9 @@ bb plugin install .
 
 ## Quick settings
 
-Open the quota card and select the gear to the left of the plan name to change the refresh interval or choose where the ring appears. The chat and left sidebar can be toggled independently. A Codex side chat uses its own quota even when the main chat uses another provider. If you hide both rings, turn either one back on in **BB Settings → Installed plugins → Codex Quota**.
+<img src="docs/screenshots/sidebar-en.png" width="600" alt="The BB sidebar ring opens the Pro quota card beside the button. Its gear opens the refresh interval and switches for chat and sidebar.">
+
+On `main`, select the gear beside the plan name to set the refresh interval and choose where the ring appears. A Codex side chat uses its own quota even when the main chat uses another provider. If you hide both rings, turn either one back on in **BB Settings → Installed plugins → Codex Quota**.
 
 ## Language
 
