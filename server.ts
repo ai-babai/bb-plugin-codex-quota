@@ -52,6 +52,8 @@ export default function plugin(bb: BbPluginApi) {
     return resource ? { resource, hostId } : null;
   }
   bb.settings.define({
+    showInChat: { type: "boolean", label: "Show in chat", default: true },
+    showInSidebar: { type: "boolean", label: "Show in left sidebar", default: true },
     refreshIntervalSeconds: {
       type: "number", label: "Auto-refresh interval (seconds)", default: 120,
       description: "Poll while the thread is visible. Set to 0 to turn off the timer.",

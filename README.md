@@ -47,6 +47,10 @@ bb plugin install .
 
 </details>
 
+## Quick settings
+
+Open the quota card and select the gear to change the refresh interval or choose where the ring appears. The chat and left sidebar can be toggled independently. A Codex side chat uses its own quota even when the main chat uses another provider. If you hide both rings, turn either one back on in **BB Settings → Installed plugins → Codex Quota**.
+
 ## Language
 
 English is the default. Choose **English** or **Русский** in **Codex Quota settings → Language**. An agent can set the same preference from the CLI:

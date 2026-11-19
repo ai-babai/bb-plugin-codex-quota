@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ResetCount, useAvailableResetCount } from "./lib/reset-count";
+import { environmentLocation, registerSidebarQuota } from "./lib/sidebar-quota";
+import { QuotaSettingsCard } from "./lib/quota-settings";
 import { QuotaPopover } from "./lib/quota-popover";
-import { definePluginApp, type ComposerSelection, useComposer, useSettings } from "@get-bb/plugin-sdk/app";
+import { definePluginApp, useComposer, useSettings } from "@get-bb/plugin-sdk/app";
 import { mountUsageFooter } from "./lib/usage-footer";
 import { getQuotaFormat, isFresh } from "./lib/format";
 import type { Quota, QuotaLocation, QuotaWindow } from "./server";
@@ -70,19 +72,10 @@ function WindowRow({ window, fresh, now, format }: {
   </div>;
 }
 
-function draftLocation(environment: ComposerSelection["environment"]): QuotaLocation | null {
-  switch (environment?.type) {
-    case "reuse": return { environmentId: environment.environmentId };
-    case "host": return environment.hostId ? { hostId: environment.hostId } : null;
-    case "provider": return environment.machine?.type === "existing" ? { hostId: environment.machine.hostId } : null;
-    default: return null;
-  }
-}
-
 function DraftQuotaDisk() {
   const { selection } = useComposer();
   const environment = selection?.environment;
-  const location = useMemo(() => draftLocation(environment), [environment]);
+  const location = useMemo(() => environmentLocation(environment), [environment]);
   if (!location || selection?.providerId !== "codex") return null;
   return <QuotaFooter key={JSON.stringify(location)} location={location} />;
 }
@@ -96,6 +89,11 @@ function QuotaDisk() {
 }
 
 function QuotaFooter({ location }: { location: QuotaLocation }) {
+  const { values } = useSettings();
+  return values?.showInChat === false ? null : <ChatRing location={location} />;
+}
+
+function ChatRing({ location }: { location: QuotaLocation }) {
   const { origin, target } = useFooterTarget();
   return <><span ref={origin} data-codex-quota-origin="" className="hidden" />{target &&
     createPortal(<ComposerQuota location={location} />, target)}</>;
@@ -171,14 +169,18 @@ function QuotaCard({ location, data, now, fresh, count, format, onRefresh }: {
   const remaining = remainingQuota(windows, fresh, now);
   const label = `${text.title}: ${remaining === null ? text.unavailable : `${percent.format(remaining)}% ${text.remaining}`}`;
   return <QuotaPopover label={label} title={text.title} onRefresh={onRefresh} trigger={<QuotaRing remaining={remaining} />}>
-    <div className="flex items-center gap-2">
-      <h3 className="min-w-0 wrap-anywhere font-medium">Codex{account?.plan ? ` · ${account.plan}` : ""}</h3>
-      <ResetCount key={account?.plan} location={location} quota={data} count={count} format={format} />
-    </div>
-    <QuotaWindows data={data} now={now} fresh={fresh} format={format} />
+    <QuotaSettingsCard>{settingsButton => <>
+      <div className="flex items-center gap-1">
+        <h3 className="mr-auto min-w-0 wrap-anywhere font-medium">Codex{account?.plan ? ` · ${account.plan}` : ""}</h3>
+        <ResetCount key={account?.plan} location={location} quota={data} count={count} format={format} />
+        {settingsButton}
+      </div>
+      <QuotaWindows data={data} now={now} fresh={fresh} format={format} />
+    </>}</QuotaSettingsCard>
   </QuotaPopover>;
 }
 export default definePluginApp((app) => {
+  registerSidebarQuota(app, ComposerQuota);
   app.composer.customize({ id: "draft-quota", scopes: ["new-thread"], banners: [{ id: "disk", chrome: "bare", component: DraftQuotaDisk }] });
   app.contentScripts.register({ id: "quota-footer", mount: mountUsageFooter });
   app.composer.customize({ id: "quota-disk", scopes: ["thread"], banners: [{ id: "disk", chrome: "bare", component: QuotaDisk }] });

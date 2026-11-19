@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { usePortalScopeProps } from "./portal-scope";
 
@@ -9,6 +9,9 @@ interface QuotaPopoverProps {
   trigger: ReactNode;
   children: ReactNode;
 }
+
+const PinQuotaPopover = createContext(() => {});
+export function usePinQuotaPopover() { return useContext(PinQuotaPopover); }
 
 function useInsideTouchFocus() {
   const inside = useRef(false);
@@ -53,6 +56,12 @@ export function QuotaPopover({ label, title, trigger, children, onRefresh }: Quo
     }, 200);
   }
 
+  function pinForInteraction() {
+    cancelClose();
+    passive.current = false;
+    setMode("pinned");
+  }
+
   return <Popover.Root open={mode !== "closed"} onOpenChange={open => {
     cancelClose();
     if (open) passive.current = false;
@@ -86,7 +95,10 @@ export function QuotaPopover({ label, title, trigger, children, onRefresh }: Quo
           data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95
           data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95
           motion-reduce:animate-none!">
-        {children}
+        {/* Reset the card's side and drafts even if reopened during its exit animation. */}
+        <PinQuotaPopover.Provider value={pinForInteraction}>
+          {mode !== "closed" && children}
+        </PinQuotaPopover.Provider>
       </Popover.Content>
     </Popover.Portal>
   </Popover.Root>;

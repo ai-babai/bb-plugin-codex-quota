@@ -94,6 +94,8 @@
     "lib/quota-time.ts",
     "lib/portal-scope.ts",
     "lib/quota-popover.tsx",
+    "lib/quota-settings.tsx",
+    "lib/sidebar-quota.tsx",
     "lib/usage-footer.ts",
     "lib/use-quota.ts",
     "assets/icon.svg",

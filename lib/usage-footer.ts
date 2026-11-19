@@ -1,7 +1,7 @@
 import type { PluginContentScriptContext } from "@get-bb/plugin-sdk/app";
 
 function findPlacementTarget(origin: HTMLElement) {
-  const shell = origin.closest('[data-app-composer-role="primary"][data-promptbox-shell]');
+  const shell = origin.closest('[data-app-composer-role][data-promptbox-shell]');
   if (!shell) return null;
   const composer = shell.querySelector(':scope > [data-follow-up-composer-anchor] > [data-follow-up-composer]');
   const footer = composer?.querySelector(':scope > [data-follow-up-composer-footer]')

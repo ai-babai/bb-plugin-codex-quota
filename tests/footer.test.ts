@@ -4,9 +4,11 @@ import { mountUsageFooter } from "../lib/usage-footer";
 
 const anchorSelector = "[data-codex-quota-footer]";
 
-function makeComposer({ compact = false, showQuota = true }: { compact?: boolean; showQuota?: boolean } = {}) {
+function makeComposer({ compact = false, showQuota = true, role = "primary" }: {
+  compact?: boolean; showQuota?: boolean; role?: "primary" | "secondary";
+} = {}) {
   const shell = document.createElement("div");
-  shell.dataset.appComposerRole = "primary";
+  shell.dataset.appComposerRole = role;
   shell.dataset.promptboxShell = "";
   shell.innerHTML = `
     <div>${showQuota ? '<span data-codex-quota-origin></span>' : ''}</div>
@@ -152,5 +154,75 @@ it("does not place the quota beside an unrelated context control elsewhere on th
     dispose();
     composer.remove();
     otherContext.remove();
+  }
+});
+
+it("places a Codex side chat's quota in its own footer when the main composer has no quota", () => {
+  const main = makeComposer({ showQuota: false });
+  const side = makeComposer({ role: "secondary" });
+  const layout = document.createElement("div");
+  layout.append(main.shell, side.shell);
+  document.body.append(layout);
+  const dispose = mountFooter();
+  try {
+    expect(side.context.previousElementSibling?.matches(anchorSelector)).toBe(true);
+    expect(side.shell.querySelectorAll(anchorSelector)).toHaveLength(1);
+    expect(main.shell.querySelector(anchorSelector)).toBeNull();
+  } finally {
+    dispose();
+    layout.remove();
+  }
+});
+
+it("keeps simultaneous main and side quotas local across layout changes, closure and reopening", async () => {
+  const main = makeComposer();
+  const side = makeComposer({ role: "secondary" });
+  const compactSide = makeComposer({ role: "secondary", compact: true });
+  const layout = document.createElement("div");
+  layout.append(main.shell, side.shell, compactSide.shell);
+  document.body.append(layout);
+  const dispose = mountFooter();
+  const onPlaced = vi.fn();
+  document.addEventListener("codex-quota:footer-placed", onPlaced);
+  try {
+    const mainAnchor = main.context.previousElementSibling;
+    const sideAnchor = side.context.previousElementSibling;
+    const compactAnchor = compactSide.submitGroup.previousElementSibling;
+    expect(layout.querySelectorAll(anchorSelector)).toHaveLength(3);
+    expect(new Set([mainAnchor, sideAnchor, compactAnchor]).size).toBe(3);
+
+    side.context.remove();
+    await vi.waitFor(() => expect(side.footer.querySelector("button")?.nextElementSibling).toBe(sideAnchor));
+    compactSide.form.removeAttribute("data-promptbox-compact");
+    compactSide.shell.querySelector("[data-follow-up-composer]")!.append(compactSide.footer);
+    await vi.waitFor(() => expect(compactSide.context.previousElementSibling).toBe(compactAnchor));
+
+    side.shell.remove();
+    await vi.waitFor(() => expect(sideAnchor?.isConnected).toBe(false));
+    // The detached footer must lose the portal anchor too, not just leave it off screen.
+    await vi.waitFor(() => expect(side.shell.querySelector(anchorSelector)).toBeNull());
+    expect(main.context.previousElementSibling).toBe(mainAnchor);
+    expect(compactSide.context.previousElementSibling).toBe(compactAnchor);
+
+    layout.append(side.shell);
+    await vi.waitFor(() => expect(side.shell.querySelectorAll(anchorSelector)).toHaveLength(1));
+    const reopenedAnchor = side.shell.querySelector(anchorSelector);
+    expect(reopenedAnchor).not.toBe(sideAnchor);
+    requestPlacement();
+    expect(onPlaced).toHaveBeenCalledWith(expect.objectContaining({ detail: { origin: side.origin, target: reopenedAnchor } }));
+    expect(layout.querySelectorAll(anchorSelector)).toHaveLength(3);
+
+    dispose();
+    expect(layout.querySelector(anchorSelector)).toBeNull();
+    onPlaced.mockClear();
+    requestPlacement();
+    main.footer.append(document.createElement("span"));
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    expect(layout.querySelector(anchorSelector)).toBeNull();
+    expect(onPlaced).not.toHaveBeenCalled();
+  } finally {
+    document.removeEventListener("codex-quota:footer-placed", onPlaced);
+    dispose();
+    layout.remove();
   }
 });

@@ -11,12 +11,12 @@ const { rpc, customize, register, settings, composer } = vi.hoisted(() => ({
   rpc: { call: vi.fn() },
   customize: vi.fn(),
   register: vi.fn(),
-  settings: { values: { language: "en", refreshIntervalSeconds: 0, refreshOnHover: true, refreshOnPress: true } },
+  settings: { values: { language: "en", showInChat: true, refreshIntervalSeconds: 0, refreshOnHover: true, refreshOnPress: true } },
   composer: { scope: { kind: "thread", threadId: "example" }, selection: { providerId: "codex" } as ComposerSelection },
 }));
 vi.mock("@get-bb/plugin-sdk/app", () => ({
   definePluginApp: (initialize: (app: object) => void) => initialize({
-    composer: { customize }, contentScripts: { register },
+    composer: { customize }, contentScripts: { register }, slots: { experimental_appOverlay: vi.fn() },
   }),
   useComposer: () => composer,
   useSettings: () => settings,
@@ -59,7 +59,7 @@ function respondWith(data: Quota) {
 beforeEach(() => {
   rpc.call.mockReset();
   composer.selection.providerId = "codex";
-  Object.assign(settings.values, { language: "en", refreshOnHover: true, refreshOnPress: true });
+  Object.assign(settings.values, { language: "en", showInChat: true, refreshOnHover: true, refreshOnPress: true });
 });
 
 afterEach(() => { cleanup(); dispose?.(); });
@@ -101,6 +101,13 @@ it("distinguishes waiting for the first read from a failed read", async () => {
   expect(screen.getByRole("status").textContent).toBe("Loading quota…");
   await act(async () => finish({ account: null, error: "refresh_failed" }));
   expect(screen.getByRole("status").textContent).toBe("Quota unavailable");
+});
+
+it("hides the composer ring and skips quota reads when chat placement is disabled", () => {
+  settings.values.showInChat = false;
+  showDisk();
+  expect(screen.queryByRole("button", { name: /Codex/ })).toBeNull();
+  expect(rpc.call).not.toHaveBeenCalled();
 });
 
 it("leaves other providers' composers alone", () => {
