@@ -17,11 +17,17 @@ In this example, 78% of the five-hour quota and 46% of the weekly quota remain. 
 
 ## Where to see your Codex limits
 
-The teal ring sits beside the context meter in Codex chats and side chats, and above Settings in the left sidebar. In the compact phone layout, it sits beside the send controls. A Codex side chat shows the quota for its machine even when the main chat uses another provider.
+The teal ring sits beside the context meter in Codex chats and side chats, and above Settings in the left sidebar. A Codex side chat shows the quota for its machine even when the main chat uses another provider.
 
-Hover over the ring to preview each reported limit, its reset time and countdown. Click the ring to close the preview, then click again to reopen it. On a touch screen, tap the ring to toggle the card. With the ring focused, use **Enter** or **Space** to toggle it and **Esc** to close it. A **?** means quota data is missing, at least 90 minutes old, or awaiting an update after a reset.
+Hover over the ring to preview each reported limit, its reset time and countdown. Click the ring to close the preview, then click again to reopen it. With the ring focused, use **Enter** or **Space** to toggle it and **Esc** to close it. A **?** means quota data is missing, at least 90 minutes old, or awaiting an update after a reset.
 
 The lightning bolt shows the number of available manual resets, including zero. It stays hidden when the count is unknown. If resets are available, hover over or tap the bolt to check their expiry dates without using a reset.
+
+## On your phone
+
+Tap the teal ring in the chat composer or open the left sidebar and tap the ring above Settings. Both show the remaining quota and reset time.
+
+<img src="marketplace/screenshots/codex-quota/mobile-en.png" width="640" alt="Mobile BB with the quota ring in the chat composer and the Codex Pro card open in the left sidebar">
 
 ## Quick settings
 

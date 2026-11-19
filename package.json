@@ -118,6 +118,8 @@
     "docs/screenshots/sidebar-ru.png",
     "marketplace/screenshots/codex-quota/footer-dark.png",
     "marketplace/screenshots/codex-quota/quota-light.png",
+    "marketplace/screenshots/codex-quota/mobile-en.png",
+    "marketplace/screenshots/codex-quota/mobile-ru.png",
     "LICENSE"
   ],
   "overrides": {

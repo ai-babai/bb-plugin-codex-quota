@@ -55,14 +55,14 @@ git ls-remote --tags https://github.com/ai-babai/bb-plugin-codex-quota.git 'refs
 
 Start from current `get-bb/marketplace:main`. Copy the submission files
 from this repository’s `marketplace/` directory into the same relative paths
-in the registry: the entry JSON, its SVG icon, four PNGs and the Markdown
+in the registry: the entry JSON, its SVG icon, the referenced PNGs and the Markdown
 overview. The PR description is maintained separately in
 [PR_BODY.md](../marketplace/PR_BODY.md). Keep the registry overview identical
 to [PLUGIN_OVERVIEW.md](../PLUGIN_OVERVIEW.md).
 
 The public Git URL, author account, category and filenames must match the
-entry. The gallery shows the chat, sidebar and quick settings in English and Russian.
-All four screenshots use illustrative data.
+entry. The gallery shows chat, sidebar, quick settings and phone layouts in English and Russian.
+The screenshots use illustrative data.
 The registry accepts screenshots at least 1200 pixels wide and up to 2 MiB
 each. Its Markdown overview supports HTTPS links and up to 4000 characters.
 
