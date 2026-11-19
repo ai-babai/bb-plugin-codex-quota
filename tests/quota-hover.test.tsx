@@ -7,13 +7,13 @@ import { QuotaPopover } from "../lib/quota-popover";
 const label = "Codex quota";
 const detailsButton = { name: "Details" };
 
-function renderQuota() {
+function renderQuota(surface?: "chat" | "sidebar") {
   const details = vi.fn();
   const activate = vi.fn();
   render(
     <>
       <textarea aria-label="Message" />
-      <QuotaPopover onRefresh={activate} label={label} title="Codex usage" trigger={<span>75%</span>}>
+      <QuotaPopover surface={surface} onRefresh={activate} label={label} title="Codex usage" trigger={<span>75%</span>}>
         <button type="button" onClick={details}>Details</button>
       </QuotaPopover>
     </>,
@@ -39,16 +39,23 @@ async function settleTimers() {
   });
 }
 
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  // Radix measures the arrow through ResizeObserver, absent from jsdom.
+  vi.stubGlobal("ResizeObserver", class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  });
+});
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
+
 describe("QuotaPopover interactions", () => {
-  beforeEach(() => {
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-  });
-
-  afterEach(() => {
-    cleanup();
-    vi.useRealTimers();
-  });
-
   it("opens immediately on hover, keeps composer focus, and closes on leave", async () => {
     const { composer, trigger } = renderQuota();
     act(() => composer.focus());
@@ -66,8 +73,8 @@ describe("QuotaPopover interactions", () => {
     expect(document.activeElement).toBe(composer);
   });
 
-  it("keeps Details usable when the pointer crosses into the panel and closes on exit", async () => {
-    const { composer, trigger, details } = renderQuota();
+  it.each(["chat", "sidebar"] as const)("keeps Details usable across the %s panel gap and closes on exit", async surface => {
+    const { composer, trigger, details } = renderQuota(surface);
     moveMouse(composer, trigger);
 
     moveMouse(trigger, composer);
@@ -182,6 +189,18 @@ describe("QuotaPopover interactions", () => {
     expect(screen.queryByRole("button", detailsButton)).toBeNull();
     expect(document.activeElement).toBe(trigger);
   });
+});
+
+it.each([
+  { surface: undefined, side: "top", align: "end", arrow: false },
+  { surface: "sidebar" as const, side: "right", align: "center", arrow: true },
+])("opens $surface content toward $side with $align alignment", ({ surface, side, align, arrow }) => {
+  const { composer, trigger } = renderQuota(surface);
+  moveMouse(composer, trigger);
+  const card = screen.getByRole("dialog", { name: "Codex usage" });
+  expect(card.getAttribute("data-side")).toBe(side);
+  expect(card.getAttribute("data-align")).toBe(align);
+  expect(card.querySelector("svg") !== null).toBe(arrow);
 });
 
 it("requests fresh quota on hover and activation without extra reads on movement or touch entry", async () => {

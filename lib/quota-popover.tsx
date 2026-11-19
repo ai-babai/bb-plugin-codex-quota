@@ -3,6 +3,7 @@ import * as Popover from "@radix-ui/react-popover";
 import { usePortalScopeProps } from "./portal-scope";
 
 interface QuotaPopoverProps {
+  surface?: "chat" | "sidebar";
   label: string;
   onRefresh: (input: "hover" | "press") => void;
   title: string;
@@ -36,7 +37,7 @@ function useInsideTouchFocus() {
   return { start, end, keepOpen };
 }
 
-export function QuotaPopover({ label, title, trigger, children, onRefresh }: QuotaPopoverProps) {
+export function QuotaPopover({ label, title, trigger, children, onRefresh, surface = "chat" }: QuotaPopoverProps) {
   const scope = usePortalScopeProps();
   const insideTouch = useInsideTouchFocus();
   const [mode, setMode] = useState<"closed" | "hover" | "pinned">("closed");
@@ -82,7 +83,12 @@ export function QuotaPopover({ label, title, trigger, children, onRefresh }: Quo
       {trigger}
     </Popover.Trigger>
     <Popover.Portal>
-      <Popover.Content {...scope} tabIndex={-1} side="top" align="end" sideOffset={8}
+      <Popover.Content {...scope} tabIndex={-1}
+        side={surface === "sidebar" ? "right" : "top"} align={surface === "sidebar" ? "center" : "end"}
+        sideOffset={8} collisionPadding={surface === "sidebar" ? 8 : 0}
+        style={surface === "sidebar" ? {
+          maxWidth: "min(calc(100vw - 2rem), var(--radix-popover-content-available-width))",
+        } : undefined}
         aria-label={title} onPointerEnter={cancelClose} onPointerLeave={closeAfterLeave}
         onTouchStartCapture={insideTouch.start} onTouchEndCapture={insideTouch.end} onTouchCancelCapture={insideTouch.end}
         onFocusOutside={insideTouch.keepOpen}
@@ -99,6 +105,7 @@ export function QuotaPopover({ label, title, trigger, children, onRefresh }: Quo
         <PinQuotaPopover.Provider value={pinForInteraction}>
           {mode !== "closed" && children}
         </PinQuotaPopover.Provider>
+        {surface === "sidebar" && <Popover.Arrow width={8} height={4} className="fill-popover stroke-border" />}
       </Popover.Content>
     </Popover.Portal>
   </Popover.Root>;

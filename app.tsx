@@ -146,20 +146,23 @@ function QuotaRing({ remaining }: { remaining: number | null }) {
   </svg>;
 }
 
-function ComposerQuota({ location }: { location: QuotaLocation }) {
+type QuotaSurface = "chat" | "sidebar";
+
+function ComposerQuota({ location, surface = "chat" }: { location: QuotaLocation; surface?: QuotaSurface }) {
   const { values } = useSettings();
   const interval = values?.refreshIntervalSeconds;
   const { data, now, load } = useQuota(location, typeof interval === "number" ? interval : undefined);
   const fresh = isFresh(data?.account?.observedAt ?? null, now);
   const count = useAvailableResetCount(location, data, fresh);
-  return <QuotaCard location={location} data={data} now={now} fresh={fresh} count={count}
+  return <QuotaCard surface={surface} location={location} data={data} now={now} fresh={fresh} count={count}
     format={getQuotaFormat(values?.language)} onRefresh={input => {
       const enabled = input === "hover" ? values?.refreshOnHover : values?.refreshOnPress;
       if (enabled !== false) void load(true);
     }} />;
 }
 
-function QuotaCard({ location, data, now, fresh, count, format, onRefresh }: {
+function QuotaCard({ location, surface, data, now, fresh, count, format, onRefresh }: {
+  surface: QuotaSurface;
   location: QuotaLocation; data: Quota | null; now: number; fresh: boolean;
   count: number | null | undefined; format: QuotaFormat; onRefresh: (input: "hover" | "press") => void;
 }) {
@@ -168,12 +171,12 @@ function QuotaCard({ location, data, now, fresh, count, format, onRefresh }: {
   const windows = account?.windows ?? [];
   const remaining = remainingQuota(windows, fresh, now);
   const label = `${text.title}: ${remaining === null ? text.unavailable : `${percent.format(remaining)}% ${text.remaining}`}`;
-  return <QuotaPopover label={label} title={text.title} onRefresh={onRefresh} trigger={<QuotaRing remaining={remaining} />}>
-    <QuotaSettingsCard>{settingsButton => <>
+  return <QuotaPopover surface={surface} label={label} title={text.title} onRefresh={onRefresh} trigger={<QuotaRing remaining={remaining} />}>
+    <QuotaSettingsCard surface={surface}>{settingsButton => <>
       <div className="flex items-center gap-1">
+        {settingsButton}
         <h3 className="mr-auto min-w-0 wrap-anywhere font-medium">Codex{account?.plan ? ` · ${account.plan}` : ""}</h3>
         <ResetCount key={account?.plan} location={location} quota={data} count={count} format={format} />
-        {settingsButton}
       </div>
       <QuotaWindows data={data} now={now} fresh={fresh} format={format} />
     </>}</QuotaSettingsCard>

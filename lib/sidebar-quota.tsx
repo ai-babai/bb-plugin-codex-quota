@@ -6,7 +6,7 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import type { QuotaLocation } from "../server";
 
-type QuotaComponent = ComponentType<{ location: QuotaLocation }>;
+type QuotaComponent = ComponentType<{ location: QuotaLocation; surface: "sidebar" }>;
 
 export function environmentLocation(environment: ComposerSelection["environment"]): QuotaLocation | null {
   switch (environment?.type) {
@@ -169,7 +169,7 @@ function SidebarQuota({ Quota }: { Quota: QuotaComponent }) {
     if (target) target.style.display = location ? "flex" : "none";
   }, [target, location]);
   return enabled && target && location
-    ? createPortal(<Quota key={JSON.stringify(location)} location={location} />, target) : null;
+    ? createPortal(<Quota key={JSON.stringify(location)} location={location} surface="sidebar" />, target) : null;
 }
 
 /** Call inside definePluginApp; ComposerQuota supplies the existing ring/card. */
