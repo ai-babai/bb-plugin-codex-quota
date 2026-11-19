@@ -193,7 +193,7 @@ describe("QuotaPopover interactions", () => {
 
 it.each([
   { surface: undefined, side: "top", align: "end", arrow: false },
-  { surface: "sidebar" as const, side: "right", align: "center", arrow: true },
+  { surface: "sidebar" as const, side: "right", align: "end", arrow: true },
 ])("opens $surface content toward $side with $align alignment", ({ surface, side, align, arrow }) => {
   const { composer, trigger } = renderQuota(surface);
   moveMouse(composer, trigger);

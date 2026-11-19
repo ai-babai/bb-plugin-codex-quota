@@ -91,6 +91,7 @@
     "lib/reset-count.tsx",
     "lib/reset-contract.ts",
     "lib/format.ts",
+    "lib/interval-help.tsx",
     "lib/quota-time.ts",
     "lib/portal-scope.ts",
     "lib/quota-popover.tsx",

@@ -47,6 +47,8 @@ it("defaults both locations to true, localizes EN/RU and patches actual BB setti
   openSettings(ring);
   const interval = screen.getByRole("spinbutton", { name: "Refresh interval, seconds" }) as HTMLInputElement;
   expect(interval.value).toBe("120");
+  expect(document.getElementById(interval.getAttribute("aria-describedby")!)?.textContent).toBe("0 disables auto-refresh");
+  expect(screen.queryByRole("tooltip")).toBeNull();
   expect((screen.getByRole("switch", { name: "In chat" }) as HTMLInputElement).checked).toBe(true);
   expect((screen.getByRole("switch", { name: "In sidebar" }) as HTMLInputElement).checked).toBe(true);
   expect(screen.queryByRole("combobox")).toBeNull();
@@ -72,6 +74,7 @@ it("defaults both locations to true, localizes EN/RU and patches actual BB setti
   const russian = mount({ language: "ru", showInChat: false, showInSidebar: false, refreshIntervalSeconds: 300 });
   openSettings(russian.ring, "Настройки");
   expect(screen.getByRole("button", { name: "Назад" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Об автообновлении" })).toBeTruthy();
   expect((screen.getByRole("spinbutton", { name: "Обновление, секунды" }) as HTMLInputElement).value).toBe("300");
   fireEvent.click(screen.getByRole("switch", { name: "В чате" }));
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "Сохранить" })));
