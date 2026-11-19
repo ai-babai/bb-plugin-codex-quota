@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-codex-quota",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "engines": {
     "bb": ">=0.49",
@@ -8,7 +8,7 @@
   },
   "bb": {
     "name": "Codex Quota",
-    "description": "Track OpenAI Codex usage limits and reset times beside the BB context meter.",
+    "description": "See how much OpenAI Codex quota is left and when it resets, right in your BB chat or sidebar.",
     "branding": {
       "icon": "./assets/icon.svg"
     },
@@ -60,7 +60,7 @@
     "vaul": "^1.1.2",
     "vitest": "4.1.12"
   },
-  "description": "Track OpenAI Codex usage limits and reset times beside the BB context meter.",
+  "description": "See how much OpenAI Codex quota is left and when it resets, right in your BB chat or sidebar.",
   "license": "MIT",
   "author": {
     "name": "ai-babai",

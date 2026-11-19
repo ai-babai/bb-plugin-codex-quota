@@ -1,6 +1,6 @@
 ---
 type: Release Guide
-description: How to verify Codex Quota, publish its first Git release and submit the bilingual plugin to the BB Community marketplace.
+description: How to verify Codex Quota, publish a Git release and submit the bilingual plugin to the BB Community marketplace.
 created: "2026-11-17"
 ---
 # Releasing Codex Quota
@@ -14,8 +14,8 @@ listing and its images. A maintainer reviews the submission, and a merge to
 | GitHub owner | `ai-babai` |
 | Plugin repository | [ai-babai/bb-plugin-codex-quota](https://github.com/ai-babai/bb-plugin-codex-quota) |
 | Package and BB ID | `bb-plugin-codex-quota` · `codex-quota` |
-| First release | `v0.1.0` |
-| Marketplace tracking range | `^0.1.0` |
+| Current release | `v0.2.0` |
+| Marketplace tracking range | `^0.2.0` |
 | Primary category | `token-usage-and-limits` |
 
 ## 1. Verify the plugin
@@ -42,27 +42,27 @@ release before the first push, public visibility change or tag. The owner can
 approve a private repository update separately.
 
 The public Git source for the listing must resolve anonymously, and its
-`v0.1.0` tag must point at the approved commit. Use an annotated tag and verify
+`v0.2.0` tag must point at the approved commit. Use an annotated tag and verify
 the peeled commit. Replace `APPROVED_COMMIT` with the full reviewed SHA.
 
 ```sh
-git tag -a v0.1.0 APPROVED_COMMIT -m 'Codex Quota 0.1.0'
-git push origin refs/tags/v0.1.0
-git ls-remote --tags https://github.com/ai-babai/bb-plugin-codex-quota.git 'refs/tags/v0.1.0*'
+git tag -a v0.2.0 APPROVED_COMMIT -m 'Codex Quota 0.1.0'
+git push origin refs/tags/v0.2.0
+git ls-remote --tags https://github.com/ai-babai/bb-plugin-codex-quota.git 'refs/tags/v0.2.0*'
 ```
 
 ## 3. Validate the listing
 
-Start from current `get-bb/marketplace:main`. Copy the five submission files
+Start from current `get-bb/marketplace:main`. Copy the submission files
 from this repository’s `marketplace/` directory into the same relative paths
-in the registry: the entry JSON, its SVG icon, two PNGs and the Markdown
+in the registry: the entry JSON, its SVG icon, four PNGs and the Markdown
 overview. The PR description is maintained separately in
 [PR_BODY.md](../marketplace/PR_BODY.md). Keep the registry overview identical
 to [PLUGIN_OVERVIEW.md](../PLUGIN_OVERVIEW.md).
 
 The public Git URL, author account, category and filenames must match the
-entry. The first screenshot shows the English interface, the second the
-Russian interface. Both show the installed plugin with illustrative data.
+entry. The gallery shows the chat, sidebar and quick settings in English and Russian.
+All four screenshots use illustrative data.
 The registry accepts screenshots at least 1200 pixels wide and up to 2 MiB
 each. Its Markdown overview supports HTTPS links and up to 4000 characters.
 
@@ -84,8 +84,8 @@ validation.
 
 After the public tag passes verification, finalize the PR description with
 the approved source SHA and check results. Obtain approval for that exact
-submission. Push the five-file branch to the submitter’s fork and open a pull
-request against `get-bb/marketplace:main`. After merge, verify `codex-quota`
+submission. Push the branch to the submitter’s fork. Update the existing pull request
+when it is still open, or open a new one against `get-bb/marketplace:main`. After merge, verify `codex-quota`
 in the [published catalog](https://getbb.app/marketplace/v2/marketplace.json).
 Future compatible releases can use new Git tags within the same range.
 
