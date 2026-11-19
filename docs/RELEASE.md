@@ -61,7 +61,7 @@ overview. The PR description is maintained separately in
 to [PLUGIN_OVERVIEW.md](../PLUGIN_OVERVIEW.md).
 
 The public Git URL, author account, category and filenames must match the
-entry. The gallery shows chat, sidebar, quick settings and phone layouts in English and Russian.
+entry. Use English screenshots in the BB Market gallery. Show the chat, sidebar settings and phone layout. The Russian README uses localized images.
 The screenshots use illustrative data.
 The registry accepts screenshots at least 1200 pixels wide and up to 2 MiB
 each. Its Markdown overview supports HTTPS links and up to 4000 characters.
