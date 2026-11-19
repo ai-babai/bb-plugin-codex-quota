@@ -51,7 +51,11 @@ Requires BB 0.49+, Plugin SDK 0.6.132 or later in the 0.x series, and BB’s bui
 bb plugin install 'git:https://github.com/ai-babai/bb-plugin-codex-quota.git@^0.2.0'
 ```
 
-Update a Git installation with `bb plugin update codex-quota`.
+For an existing 0.1.x installation, switch its tracked range to 0.2.x. BB keeps the plugin settings.
+
+```sh
+bb plugin update codex-quota --range '^0.2.0'
+```
 
 <details>
 <summary>Install from a local checkout</summary>
