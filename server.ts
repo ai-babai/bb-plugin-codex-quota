@@ -1,56 +1,75 @@
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
+import { quotaReadingSchema, type QuotaAdapter, type QuotaCollector, type QuotaReading, type QuotaScope } from "./lib/quota-adapter";
+import { quotaAdapters } from "./lib/quota-adapters";
 import { resetContract } from "./lib/reset-contract";
 
-const windowSchema = z.object({
-  id: z.string(), label: z.string(), kind: z.enum(["five-hour", "daily", "weekly", "custom"]),
-  remaining: z.number().min(0).max(100), resetsAt: z.string().nullable(),
+export type { QuotaWindow } from "./lib/quota-adapter";
+
+const quotaProviderSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  capabilities: z.object({ resets: z.boolean() }),
 });
-const quotaSchema = z.object({
-  account: z.object({ plan: z.string(), observedAt: z.number().nullable(), windows: z.array(windowSchema) }).nullable(),
-  error: z.enum(["unavailable", "refresh_failed"]).nullable(),
-});
-export type Quota = z.infer<typeof quotaSchema>;
-export type QuotaWindow = z.infer<typeof windowSchema>;
+export type QuotaProvider = z.infer<typeof quotaProviderSchema>;
+export type Quota = QuotaReading;
 const locationSchema = z.union([
   z.object({ threadId: z.string().min(1) }),
   z.object({ environmentId: z.string().min(1) }),
   z.object({ hostId: z.string().min(1) }),
-]);
+]).and(z.object({ providerId: z.string().min(1).optional() }));
 export type QuotaLocation = z.infer<typeof locationSchema>;
 export const rpcContract = defineRpcContract({
+  listProviders: { input: z.object({}).strict(), output: z.object({ providers: z.array(quotaProviderSchema) }) },
   availableResets: { input: locationSchema.and(z.object({ includeExpiries: z.boolean().optional() })), output: resetContract.availableResets.output },
-  quota: { input: locationSchema.and(z.object({ refresh: z.boolean().default(false) })), output: quotaSchema },
+  quota: { input: locationSchema.and(z.object({ refresh: z.boolean().default(false) })), output: quotaReadingSchema },
 });
-const resourcesSchema = z.object({ resources: z.array(z.object({
-  id: z.string(), providerId: z.string(), accountKey: z.string().nullish(), scope: z.object({ kind: z.string(), hostId: z.string().optional() }),
-})) });
-// Deliberately omit account identity, e-mail and credentials from our contract.
-const providerUsageSchema = z.object({ observedAt: z.number().nullable(), usage: z.object({
-  status: z.string(), planLabel: z.string().nullable().optional(),
-  windows: z.array(z.object({
-    id: z.string(), kind: windowSchema.shape.kind, label: z.string(),
-    usedPercent: z.number().nonnegative(), resetsAt: z.string().nullable(),
-  })).optional(),
-}) });
 
-export default function plugin(bb: BbPluginApi) {
-  const host = bb.hosts.experimental_client({ contract: resetContract });
-  async function resolveHost(location: QuotaLocation) {
-    if ("hostId" in location) return location.hostId;
-    if ("environmentId" in location) return (await bb.sdk.environments.get({ environmentId: location.environmentId })).hostId;
-    const thread = await bb.sdk.threads.get({ threadId: location.threadId });
-    if (thread.providerId !== "codex" || !thread.environmentId) return null;
-    return (await bb.sdk.environments.get({ environmentId: thread.environmentId })).hostId;
+type RegisteredCollector = { provider: QuotaProvider; collector: QuotaCollector };
+type QuotaTarget = { collector: QuotaCollector; scope: QuotaScope };
+
+function registerCollectors(bb: BbPluginApi, adapters: readonly QuotaAdapter[]) {
+  const collectors = new Map<string, RegisteredCollector>();
+  for (const adapter of adapters) {
+    const { id, label } = adapter;
+    if (collectors.has(id)) throw new Error(`Duplicate quota provider: ${id}`);
+    const collector = adapter.create(bb);
+    const provider = { id, label, capabilities: { resets: Boolean(collector.readAvailableResets) } };
+    collectors.set(id, { collector, provider });
   }
-  async function findResource(location: QuotaLocation) {
-    const hostId = await resolveHost(location);
-    if (!hostId) return null;
-    const inventory = await bb.sdk.plugins.callRpc({ pluginId: "provider-codex",
-      method: "provider-usage.v1.listResources", input: {}, outputSchema: resourcesSchema });
-    const resource = inventory.resources.find(r => r.providerId === "codex" && r.scope.kind === "host" && r.scope.hostId === hostId);
-    return resource ? { resource, hostId } : null;
+  return collectors;
+}
+
+async function resolveEnvironmentTarget(
+  bb: BbPluginApi, registered: RegisteredCollector | undefined, scope: { environmentId: string; threadId?: string },
+): Promise<QuotaTarget | null> {
+  if (!registered) return null;
+  const { hostId } = await bb.sdk.environments.get({ environmentId: scope.environmentId });
+  return hostId ? { collector: registered.collector, scope: { ...scope, hostId } } : null;
+}
+
+async function resolveTarget(
+  bb: BbPluginApi, collectors: ReadonlyMap<string, RegisteredCollector>, location: QuotaLocation,
+): Promise<QuotaTarget | null> {
+  if ("threadId" in location) {
+    const { threadId, providerId } = location;
+    const thread = await bb.sdk.threads.get({ threadId });
+    if (!thread.providerId || !thread.environmentId) return null;
+    if (providerId !== undefined && providerId !== thread.providerId) return null;
+    return resolveEnvironmentTarget(bb, collectors.get(thread.providerId), { threadId, environmentId: thread.environmentId });
   }
+
+  const registered = collectors.get(location.providerId ?? "codex");
+  if ("environmentId" in location) return resolveEnvironmentTarget(bb, registered, { environmentId: location.environmentId });
+  return registered ? { collector: registered.collector, scope: { hostId: location.hostId } } : null;
+}
+
+export function createQuotaPlugin(adapters: readonly QuotaAdapter[]) {
+  return (bb: BbPluginApi) => registerPlugin(bb, adapters);
+}
+
+function registerPlugin(bb: BbPluginApi, adapters: readonly QuotaAdapter[]) {
+  const collectors = registerCollectors(bb, adapters);
   bb.settings.define({
     showInChat: { type: "boolean", label: "Show in chat", default: true },
     showInSidebar: { type: "boolean", label: "Show in left sidebar", default: true },
@@ -70,35 +89,31 @@ export default function plugin(bb: BbPluginApi) {
     },
   });
   bb.rpc.register(rpcContract, {
+    listProviders: () => ({ providers: [...collectors.values()].map(({ provider }) => provider) }),
     availableResets: async ({ includeExpiries = false, ...location }, context) => {
       try {
-        const target = await findResource(location);
-        if (!target?.resource.accountKey) return { count: null };
-        return await host.call("availableResets", { accountKey: target.resource.accountKey, includeExpiries },
-          { hostId: target.hostId, signal: context.experimental_signal });
+        const target = await resolveTarget(bb, collectors, location);
+        if (!target?.collector.readAvailableResets) return { count: null };
+        const result = await target.collector.readAvailableResets({
+          ...target.scope, includeExpiries, signal: context.experimental_signal,
+        });
+        const summary = resetContract.availableResets.output.parse(result);
+        return includeExpiries ? summary : { count: summary.count };
       } catch {
         return { count: null };
       }
     },
-    quota: async ({ refresh, ...location }): Promise<Quota> => {
+    quota: async ({ refresh, ...location }, context): Promise<Quota> => {
       try {
-        const target = await findResource(location);
-        const resource = target?.resource;
-        if (!resource) return { account: null, error: "unavailable" };
-        const result = await bb.sdk.plugins.callRpc({ pluginId: "provider-codex",
-          method: "provider-usage.v1.getResource", input: { resourceId: resource.id, refresh }, outputSchema: providerUsageSchema });
-        const { observedAt, usage } = result;
-        if (usage.status !== "ok" || observedAt === null || !usage.windows?.length) {
-          return { account: null, error: "unavailable" };
-        }
-        return { error: null, account: {
-          plan: usage.planLabel || "Codex", observedAt,
-          windows: usage.windows.map((window) => ({
-            id: window.id, label: window.label, kind: window.kind,
-            remaining: Math.max(0, 100 - window.usedPercent), resetsAt: window.resetsAt,
-          })),
-        } };
+        const target = await resolveTarget(bb, collectors, location);
+        if (!target) return { account: null, error: "unavailable" };
+        const result = await target.collector.readQuota({
+          ...target.scope, refresh, signal: context.experimental_signal,
+        });
+        return quotaReadingSchema.parse(result);
       } catch { return { account: null, error: "refresh_failed" }; }
     },
   });
 }
+
+export default createQuotaPlugin(quotaAdapters);

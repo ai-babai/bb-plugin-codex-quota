@@ -1,7 +1,9 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import plugin from "../server";
+import type { QuotaAdapter, QuotaCollector } from "../lib/quota-adapter";
+import { quotaAdapters } from "../lib/quota-adapters";
+import plugin, { createQuotaPlugin } from "../server";
 
 const threadId = "thread-1";
 const environmentId = "environment-1";
@@ -25,6 +27,7 @@ const windows = [
 
 const unavailable = { account: null, error: "unavailable" };
 const refreshFailed = { account: null, error: "refresh_failed" };
+const codex = { id: "codex", label: "Codex", capabilities: { resets: true } };
 
 const readHost = vi.fn();
 const getThread = vi.fn();
@@ -70,7 +73,13 @@ afterEach(async () => {
 });
 
 describe("quota RPC", () => {
-  it("uses the thread environment's Codex host resource for an explicit refresh", async () => {
+  it("lists Codex and its resets capability without reading provider data", async () => {
+    await expect(host.harness.behavior.callRpc("listProviders", {})).resolves.toStrictEqual({ providers: [codex] });
+    expect(listResources).not.toHaveBeenCalled();
+    expect(readHost).not.toHaveBeenCalled();
+  });
+
+  it("uses the thread's actual Codex host resource even if the request supplies other IDs", async () => {
     listResources.mockResolvedValue({
       resources: [
         { ...resource, id: "other-host", scope: { kind: "host", hostId: "host-other" } },
@@ -80,7 +89,9 @@ describe("quota RPC", () => {
       ],
     });
 
-    await expect(host.harness.behavior.callRpc("quota", { threadId, refresh: true }))
+    await expect(host.harness.behavior.callRpc("quota", {
+      threadId, hostId: "host-other", environmentId: "other-environment", providerId: "codex", refresh: true,
+    }))
       .resolves.toMatchObject({ error: null });
     expect(getThread).toHaveBeenCalledExactlyOnceWith({ threadId });
     expect(getEnvironment).toHaveBeenCalledExactlyOnceWith({ environmentId });
@@ -135,6 +146,33 @@ describe("quota RPC", () => {
     expect(getEnvironment).not.toHaveBeenCalled();
     expect(listResources).not.toHaveBeenCalled();
     expect(getResource).not.toHaveBeenCalled();
+  });
+
+  it("does not replace the thread provider with the requested provider", async () => {
+    getThread.mockResolvedValue({ providerId: "claude-code", environmentId });
+    const location = { threadId, providerId: "codex" };
+
+    await expect(host.harness.behavior.callRpc("quota", location)).resolves.toStrictEqual(unavailable);
+    await expect(host.harness.behavior.callRpc("availableResets", location)).resolves.toStrictEqual({ count: null });
+    expect(getEnvironment).not.toHaveBeenCalled();
+    expect(listResources).not.toHaveBeenCalled();
+    expect(readHost).not.toHaveBeenCalled();
+  });
+
+  it("does not fall back to Codex for a host request with an unregistered provider", async () => {
+    const location = { hostId, providerId: "unregistered" };
+
+    await expect(host.harness.behavior.callRpc("quota", location)).resolves.toStrictEqual(unavailable);
+    await expect(host.harness.behavior.callRpc("availableResets", location)).resolves.toStrictEqual({ count: null });
+    expect(listResources).not.toHaveBeenCalled();
+    expect(readHost).not.toHaveBeenCalled();
+  });
+
+  it("does not read any provider data if the environment has no host", async () => {
+    getEnvironment.mockResolvedValue({ hostId: null });
+
+    await expect(host.harness.behavior.callRpc("quota", { environmentId })).resolves.toStrictEqual(unavailable);
+    expect(listResources).not.toHaveBeenCalled();
   });
 
   it("does not collect usage when only another host has a resource", async () => {
@@ -202,6 +240,12 @@ describe("available manual resets", () => {
     expect(readHost).toHaveBeenCalledWith(expect.objectContaining({ hostId, input: { accountKey, includeExpiries: true } }));
   });
 
+  it("returns only the count when the collector supplies unrequested expiry details", async () => {
+    readHost.mockResolvedValue({ count: 1, expiries: [1_800_000_000] });
+
+    await expect(host.harness.behavior.callRpc("availableResets", { threadId })).resolves.toStrictEqual({ count: 1 });
+  });
+
   it("skips the host when BB cannot identify the account", async () => {
     listResources.mockResolvedValue({ resources: [{ ...resource, accountKey: null }] });
     await expect(host.harness.behavior.callRpc("availableResets", { threadId })).resolves.toEqual({ count: null });
@@ -213,5 +257,36 @@ describe("available manual resets", () => {
     await expect(host.harness.behavior.callRpc("availableResets", { threadId })).resolves.toEqual({ count: null });
     await expect(host.harness.behavior.callRpc("quota", { threadId })).resolves.toMatchObject({ account: { plan: "Pro" } });
     expect(readHost).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("quota collector registration", () => {
+  it("routes a named host collector and projects its reading onto the public quota shape", async () => {
+    const window = { id: "monthly", label: "Monthly", kind: "custom" as const, remaining: 25, resetsAt };
+    const reading = { account: { plan: "Example plan", observedAt, windows: [window] }, error: null };
+    const privateReading = { ...reading, account: { ...reading.account, accountEmail }, accountKey };
+    const readQuota = vi.fn<QuotaCollector["readQuota"]>().mockResolvedValue(privateReading);
+    const adapter: QuotaAdapter = { id: "example", label: "Example usage", create: () => ({ readQuota }) };
+    const multiple = createFakePluginHost({ pluginId: "codex-quota" });
+    const provider = { id: adapter.id, label: adapter.label, capabilities: { resets: false } };
+    const location = { hostId, providerId: adapter.id };
+
+    try {
+      createQuotaPlugin([...quotaAdapters, adapter])(multiple.bb);
+      await expect(multiple.harness.behavior.callRpc("listProviders", {}))
+        .resolves.toStrictEqual({ providers: [codex, provider] });
+      await expect(multiple.harness.behavior.callRpc("quota", { ...location, refresh: true })).resolves.toStrictEqual(reading);
+      expect(readQuota).toHaveBeenCalledExactlyOnceWith({ hostId, refresh: true, signal: expect.any(AbortSignal) });
+      await expect(multiple.harness.behavior.callRpc("availableResets", location)).resolves.toStrictEqual({ count: null });
+
+      readQuota.mockResolvedValue({ ...reading, account: { ...reading.account, windows: [{ ...window, remaining: 101 }] } });
+      await expect(multiple.harness.behavior.callRpc("quota", location)).resolves.toStrictEqual(refreshFailed);
+    } finally {
+      await multiple.harness.lifecycle.dispose();
+    }
+  });
+
+  it("rejects a second collector with an already registered provider ID", () => {
+    expect(() => createQuotaPlugin([...quotaAdapters, ...quotaAdapters])(host.bb)).toThrow("Duplicate quota provider: codex");
   });
 });

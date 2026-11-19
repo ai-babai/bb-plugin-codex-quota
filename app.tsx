@@ -7,8 +7,8 @@ import { QuotaPopover } from "./lib/quota-popover";
 import { definePluginApp, useComposer, useSettings } from "@get-bb/plugin-sdk/app";
 import { mountUsageFooter } from "./lib/usage-footer";
 import { getQuotaFormat, isFresh } from "./lib/format";
-import type { Quota, QuotaLocation, QuotaWindow } from "./server";
-import { useQuota } from "./lib/use-quota";
+import type { Quota, QuotaLocation, QuotaProvider, QuotaWindow } from "./server";
+import { useQuota, useQuotaProviders } from "./lib/use-quota";
 
 const trackClass = "flex h-1.5 w-full justify-end overflow-hidden rounded-full bg-border";
 
@@ -74,29 +74,40 @@ function WindowRow({ window, fresh, now, format }: {
 
 function DraftQuotaDisk() {
   const { selection } = useComposer();
+  const { values } = useSettings();
   const environment = selection?.environment;
-  const location = useMemo(() => environmentLocation(environment), [environment]);
-  if (!location || selection?.providerId !== "codex") return null;
-  return <QuotaFooter key={JSON.stringify(location)} location={location} />;
+  const providerId = selection?.providerId;
+  const providers = useQuotaProviders(providerId, values?.showInChat !== false);
+  const location = useMemo(() => {
+    const scope = environmentLocation(environment);
+    return scope && providerId ? { ...scope, providerId } : null;
+  }, [environment, providerId]);
+  const provider = providers.find(item => item.id === providerId);
+  if (!location || !provider) return null;
+  return <QuotaFooter key={JSON.stringify(location)} location={location} provider={provider} />;
 }
 
 function QuotaDisk() {
   const composer = useComposer();
-  const threadId = composer.scope.kind === "thread" ? composer.scope.threadId : null;
-  const location = useMemo(() => threadId ? { threadId } : null, [threadId]);
-  if (!location || composer.selection?.providerId !== "codex") return null;
-  return <QuotaFooter key={threadId} location={location} />;
-}
-
-function QuotaFooter({ location }: { location: QuotaLocation }) {
   const { values } = useSettings();
-  return values?.showInChat === false ? null : <ChatRing location={location} />;
+  const threadId = composer.scope.kind === "thread" ? composer.scope.threadId : null;
+  const providerId = composer.selection?.providerId;
+  const providers = useQuotaProviders(`${providerId}:${threadId}`, values?.showInChat !== false);
+  const location = useMemo(() => threadId && providerId ? { threadId, providerId } : null, [threadId, providerId]);
+  const provider = providers.find(item => item.id === providerId);
+  if (!location || !provider) return null;
+  return <QuotaFooter key={JSON.stringify(location)} location={location} provider={provider} />;
 }
 
-function ChatRing({ location }: { location: QuotaLocation }) {
+function QuotaFooter({ location, provider }: { location: QuotaLocation; provider: QuotaProvider }) {
+  const { values } = useSettings();
+  return values?.showInChat === false ? null : <ChatRing location={location} provider={provider} />;
+}
+
+function ChatRing({ location, provider }: { location: QuotaLocation; provider: QuotaProvider }) {
   const { origin, target } = useFooterTarget();
   return <><span ref={origin} data-codex-quota-origin="" className="hidden" />{target &&
-    createPortal(<ComposerQuota location={location} />, target)}</>;
+    createPortal(<ComposerQuota location={location} provider={provider} />, target)}</>;
 }
 
 function useFooterTarget() {
@@ -148,21 +159,22 @@ function QuotaRing({ remaining }: { remaining: number | null }) {
 
 type QuotaSurface = "chat" | "sidebar";
 
-function ComposerQuota({ location, surface = "chat" }: { location: QuotaLocation; surface?: QuotaSurface }) {
+function ComposerQuota({ location, provider, surface = "chat" }: { location: QuotaLocation; provider: QuotaProvider; surface?: QuotaSurface }) {
   const { values } = useSettings();
   const interval = values?.refreshIntervalSeconds;
   const { data, now, load } = useQuota(location, typeof interval === "number" ? interval : undefined);
   const fresh = isFresh(data?.account?.observedAt ?? null, now);
-  const count = useAvailableResetCount(location, data, fresh);
-  return <QuotaCard surface={surface} location={location} data={data} now={now} fresh={fresh} count={count}
-    format={getQuotaFormat(values?.language)} onRefresh={input => {
+  const count = useAvailableResetCount(location, data, fresh, provider.capabilities.resets);
+  return <QuotaCard surface={surface} provider={provider} location={location} data={data} now={now} fresh={fresh} count={count}
+    format={getQuotaFormat(values?.language, provider.label)} onRefresh={input => {
       const enabled = input === "hover" ? values?.refreshOnHover : values?.refreshOnPress;
       if (enabled !== false) void load(true);
     }} />;
 }
 
-function QuotaCard({ location, surface, data, now, fresh, count, format, onRefresh }: {
+function QuotaCard({ location, surface, provider, data, now, fresh, count, format, onRefresh }: {
   surface: QuotaSurface;
+  provider: QuotaProvider;
   location: QuotaLocation; data: Quota | null; now: number; fresh: boolean;
   count: number | null | undefined; format: QuotaFormat; onRefresh: (input: "hover" | "press") => void;
 }) {
@@ -175,8 +187,8 @@ function QuotaCard({ location, surface, data, now, fresh, count, format, onRefre
     <QuotaSettingsCard surface={surface}>{settingsButton => <>
       <div className="flex items-center gap-1">
         {settingsButton}
-        <h3 className="mr-auto min-w-0 wrap-anywhere font-medium">Codex{account?.plan ? ` · ${account.plan}` : ""}</h3>
-        <ResetCount key={account?.plan} location={location} quota={data} count={count} format={format} />
+        <h3 className="mr-auto min-w-0 wrap-anywhere font-medium">{provider.label}{account?.plan ? ` · ${account.plan}` : ""}</h3>
+        {provider.capabilities.resets && <ResetCount key={account?.plan} location={location} quota={data} count={count} format={format} />}
       </div>
       <QuotaWindows data={data} now={now} fresh={fresh} format={format} />
     </>}</QuotaSettingsCard>

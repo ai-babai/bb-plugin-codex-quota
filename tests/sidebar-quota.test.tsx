@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
   composers: [] as PluginComposerApi[],
   context: { threadId: "main" as string | null },
   sdk: { threads: { get: vi.fn() } },
+  rpc: { call: vi.fn() },
 }));
 vi.mock("@get-bb/plugin-sdk/app", () => ({
   experimental_usePluginId: () => "codex-quota",
@@ -19,6 +20,8 @@ vi.mock("@get-bb/plugin-sdk/app", () => ({
   useComposers: () => state.composers,
   useBbContext: () => state.context,
   useSdk: () => state.sdk,
+  useRpc: () => state.rpc,
+  useRealtimeConnectionState: () => "connected",
 }));
 import { environmentLocation, mountSidebarQuota, registerSidebarQuota } from "../lib/sidebar-quota";
 
@@ -60,6 +63,7 @@ beforeEach(() => {
   state.composers = [];
   state.context.threadId = "main";
   state.sdk.threads.get.mockReset();
+  state.rpc = { call: vi.fn().mockResolvedValue({ providers: [{ id: "codex", label: "Codex", capabilities: { resets: true } }] }) };
 });
 afterEach(() => { cleanup(); dispose?.(); dispose = undefined; document.body.replaceChildren(); });
 
@@ -72,7 +76,7 @@ it("places one shared control above Settings by default, independently of the ch
   expect(anchor.nextElementSibling).toBe(layout.settings);
   expect(layout.footer.style.flexDirection).toBe("column");
   expect(anchor.getAttribute("data-bb-plugin")).toBe("codex-quota");
-  expect(anchor.textContent).toBe('{"threadId":"main"}');
+  expect(anchor.textContent).toBe('{"threadId":"main","providerId":"codex"}');
   expect(state.sdk.threads.get).not.toHaveBeenCalled();
   state.settings.showInSidebar = false;
   view.update();
@@ -131,11 +135,11 @@ it("uses the single Codex side composer on a non-Codex main page and rejects amb
   select({ providerId: "other" });
   state.composers = [{ scope: { kind: "thread", threadId: "side" }, selection: { providerId: "codex" } } as PluginComposerApi];
   const view = showQuota();
-  expect((await screen.findByRole("button", { name: "Quota" })).textContent).toBe('{"threadId":"side"}');
+  expect((await screen.findByRole("button", { name: "Quota" })).textContent).toBe('{"threadId":"side","providerId":"codex"}');
   state.composers = [...state.composers, { scope: { kind: "thread", threadId: "another" }, selection: { providerId: "codex" } } as PluginComposerApi];
   state.sdk.threads.get.mockResolvedValue({ providerId: "other", environmentId: "known-environment" });
   view.update();
-  await waitFor(() => expect(screen.getByRole("button", { name: "Quota" }).textContent).toBe('{"environmentId":"known-environment"}'));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Quota" }).textContent).toBe('{"environmentId":"known-environment","providerId":"codex"}'));
 });
 
 it("shows Codex quota of an explicitly selected environment on a non-Codex new chat", async () => {
@@ -144,7 +148,7 @@ it("shows Codex quota of an explicitly selected environment on a non-Codex new c
   state.composer.scope = { kind: "new-thread", projectId: null };
   select({ providerId: "other", environment: { type: "host", hostId: "selected-machine", workspace: { type: "unmanaged", path: null } } });
   const view = showQuota();
-  expect((await screen.findByRole("button", { name: "Quota" })).textContent).toBe('{"hostId":"selected-machine"}');
+  expect((await screen.findByRole("button", { name: "Quota" })).textContent).toBe('{"hostId":"selected-machine","providerId":"codex"}');
   select({ providerId: "other", environment: { type: "host", workspace: { type: "unmanaged", path: null } } });
   view.update();
   expect(screen.queryByRole("button", { name: "Quota" })).toBeNull();
@@ -163,9 +167,9 @@ it("does not flash the previous environment or accept a late route response", as
   state.composer.scope = { kind: "thread", threadId: "next" };
   state.sdk.threads.get.mockResolvedValue({ providerId: "other", environmentId: "next-env" });
   view.update();
-  await waitFor(() => expect(screen.getByRole("button", { name: "Quota" }).textContent).toBe('{"environmentId":"next-env"}'));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Quota" }).textContent).toBe('{"environmentId":"next-env","providerId":"codex"}'));
   resolveOld({ providerId: "other", environmentId: "previous-env" });
-  await waitFor(() => expect(screen.getByRole("button", { name: "Quota" }).textContent).toBe('{"environmentId":"next-env"}'));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Quota" }).textContent).toBe('{"environmentId":"next-env","providerId":"codex"}'));
   state.context.threadId = null;
   view.update();
   expect(screen.queryByRole("button", { name: "Quota" })).toBeNull();

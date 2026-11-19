@@ -52,7 +52,7 @@ test("runtime cycles exclude type-only edges and reject real circular imports", 
 
 test("maps native metrics to async methods and nested callbacks on the same line", async () => {
   const filePath = "lib/fixture.ts";
-  const source = "const actions = { async run() { return [true].map(x => x ? 1 : 0).filter(x => x > 0); } };";
+  const source = "const [, actions] = [null, { async run() { return [true].map(x => x ? 1 : 0).filter(x => x > 0); } }];";
   const eslint = new ESLint({ overrideConfig: { rules: {
     complexity: ["error", 0], "sonarjs/cognitive-complexity": ["error", 0],
   } } });

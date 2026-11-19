@@ -9,8 +9,18 @@ type ResetProps = { location: QuotaLocation; quota: Quota | null; count: number 
 
 // Reuse each read while the quota snapshot is current, including across hovers.
 type ResetRead = { pending: Promise<ResetSummary>; value?: ResetSummary };
-const counts = new WeakMap<Quota, ResetRead>();
-const details = new WeakMap<Quota, ResetRead>();
+const counts = new WeakMap<Quota, Map<string, ResetRead>>();
+const details = new WeakMap<Quota, Map<string, ResetRead>>();
+
+function resetEntries(cache: WeakMap<Quota, Map<string, ResetRead>>, quota: Quota) {
+  let entries = cache.get(quota);
+  if (!entries) { entries = new Map(); cache.set(quota, entries); }
+  return entries;
+}
+
+function cachedReset(cache: WeakMap<Quota, Map<string, ResetRead>>, quota: Quota, locationKey: string) {
+  return cache.get(quota)?.get(locationKey)?.value;
+}
 
 function useResetSummary(location: QuotaLocation, quota: Quota | null, { includeExpiries, enabled }: {
   includeExpiries: boolean;
@@ -18,28 +28,31 @@ function useResetSummary(location: QuotaLocation, quota: Quota | null, { include
 }) {
   const rpc = useRpc<typeof rpcContract>();
   const cache = includeExpiries ? details : counts;
+  const locationKey = JSON.stringify(location);
   const plan = quota?.account?.plan;
   const [last, setLast] = useState<{ location: QuotaLocation; plan?: string; value: ResetSummary }>();
   useEffect(() => {
     if (enabled === false || !quota) return;
     let active = true;
-    let read = cache.get(quota);
+    const entries = resetEntries(cache, quota);
+    let read = entries.get(locationKey);
     if (!read) {
       const pending = rpc.call("availableResets", { ...location, includeExpiries }).catch(() => ({ count: null }));
       const entry: ResetRead = { pending };
       void pending.then(value => { entry.value = value; });
-      cache.set(quota, entry);
+      entries.set(locationKey, entry);
       read = entry;
     }
     void read.pending.then(value => { if (active) setLast({ location, plan, value }); });
     return () => { active = false; };
-  }, [rpc, location, quota, plan, includeExpiries, enabled, cache]);
+  }, [rpc, location, locationKey, quota, plan, includeExpiries, enabled, cache]);
   if (!quota) return undefined;
-  return cache.get(quota)?.value ?? (last?.location === location && last.plan === plan ? last.value : undefined);
+  return cachedReset(cache, quota, locationKey) ?? (last?.location === location && last.plan === plan ? last.value : undefined);
 }
 
-export function useAvailableResetCount(location: QuotaLocation, quota: Quota | null, fresh: boolean) {
-  const summary = useResetSummary(location, fresh ? quota : null, { includeExpiries: false });
+export function useAvailableResetCount(location: QuotaLocation, quota: Quota | null, fresh: boolean, enabled = true) {
+  const summary = useResetSummary(location, fresh ? quota : null, { includeExpiries: false, enabled });
+  if (!enabled) return null;
   if (quota && (!quota.account || !fresh)) return null;
   return summary?.count;
 }

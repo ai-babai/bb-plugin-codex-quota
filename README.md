@@ -91,4 +91,4 @@ npm run check
 
 </details>
 
-[Quality checks](docs/QUALITY.md) · [Project map](INDEX.md) · [MIT license](LICENSE)
+[Add a quota collector](docs/PROVIDERS.md) · [Quality checks](docs/QUALITY.md) · [Project map](INDEX.md) · [MIT license](LICENSE)

@@ -4,9 +4,10 @@ import {
   experimental_usePluginId, useBbContext, useComposer, useComposers, useSdk, useSettings,
   type ComposerSelection, type PluginAppBuilder, type PluginComposerApi,
 } from "@get-bb/plugin-sdk/app";
-import type { QuotaLocation } from "../server";
+import type { QuotaLocation, QuotaProvider } from "../server";
+import { useQuotaProviders } from "./use-quota";
 
-type QuotaComponent = ComponentType<{ location: QuotaLocation; surface: "sidebar" }>;
+type QuotaComponent = ComponentType<{ location: QuotaLocation; provider: QuotaProvider; surface: "sidebar" }>;
 
 export function environmentLocation(environment: ComposerSelection["environment"]): QuotaLocation | null {
   switch (environment?.type) {
@@ -18,63 +19,72 @@ export function environmentLocation(environment: ComposerSelection["environment"
   }
 }
 
-function composerLocation(composer: PluginComposerApi): QuotaLocation | null {
-  if (composer.selection?.providerId !== "codex") return null;
-  return composer.scope.kind === "new-thread"
-    ? environmentLocation(composer.selection.environment)
-    : { threadId: composer.scope.threadId };
+function composerLocation(composer: PluginComposerApi, providers: QuotaProvider[]): QuotaLocation | null {
+  const providerId = composer.selection?.providerId;
+  if (!providers.some(provider => provider.id === providerId)) return null;
+  const scope = composer.scope.kind === "new-thread"
+    ? environmentLocation(composer.selection?.environment) : { threadId: composer.scope.threadId };
+  return scope ? { ...scope, providerId } : null;
 }
 
-function selectedLocation(current: PluginComposerApi, composers: readonly PluginComposerApi[]) {
-  // An explicit current Codex selection wins. Otherwise use an unambiguous
-  // on-screen Codex composer (including ThreadChat on a non-Codex page).
-  const direct = composerLocation(current);
-  const candidates = composers.map(composerLocation).filter(location => location !== null);
+function selectedLocation(current: PluginComposerApi, composers: readonly PluginComposerApi[], providers: QuotaProvider[]) {
+  // Registry support, rather than a UI provider whitelist, decides routing.
+  if (providers.some(provider => provider.id === current.selection?.providerId)) return composerLocation(current, providers);
+  const candidates = composers.map(composer => composerLocation(composer, providers)).filter(location => location !== null);
   const distinct = new Map(candidates.map(location => [JSON.stringify(location), location]));
-  if (direct) return direct;
   if (distinct.size === 1) return distinct.values().next().value ?? null;
-  return current.scope.kind === "new-thread" ? environmentLocation(current.selection?.environment) : null;
+  if (current.scope.kind !== "new-thread" || !providers.some(provider => provider.id === "codex")) return null;
+  const scope = environmentLocation(current.selection?.environment);
+  return scope ? { ...scope, providerId: "codex" } : null;
 }
 
 function useStableLocation(selected: QuotaLocation | null) {
   const hostId = selected && "hostId" in selected ? selected.hostId : null;
   const environmentId = selected && "environmentId" in selected ? selected.environmentId : null;
   const selectedThreadId = selected && "threadId" in selected ? selected.threadId : null;
+  const providerId = selected?.providerId;
   // Preserve location identity across composer text edits: useQuota keys its
   // polling effect by this object. No draft text or account data is retained.
   return useMemo(() => {
-    if (hostId) return { hostId };
-    if (environmentId) return { environmentId };
-    return selectedThreadId ? { threadId: selectedThreadId } : null;
-  }, [hostId, environmentId, selectedThreadId]);
+    if (hostId) return { hostId, providerId };
+    if (environmentId) return { environmentId, providerId };
+    return selectedThreadId ? { threadId: selectedThreadId, providerId } : null;
+  }, [hostId, environmentId, selectedThreadId, providerId]);
 }
 
-function useThreadLocation(threadId: string | null, enabled: boolean) {
+function resolvedThreadLocation(thread: { providerId: string; environmentId?: string | null }, threadId: string, providers: QuotaProvider[]) {
+  if (providers.some(provider => provider.id === thread.providerId)) return { threadId, providerId: thread.providerId };
+  return thread.environmentId && providers.some(provider => provider.id === "codex")
+    ? { environmentId: thread.environmentId, providerId: "codex" } : null;
+}
+
+function useThreadLocation(threadId: string | null, enabled: boolean, providers: QuotaProvider[]) {
   const sdk = useSdk();
   const [resolved, setResolved] = useState<{ threadId: string; location: QuotaLocation | null } | null>(null);
   useEffect(() => {
-    if (!enabled || !threadId) return;
+    if (!enabled || !threadId || !providers.length) return;
     let active = true;
     void sdk.threads.get({ threadId }).then(thread => {
-      if (active) setResolved({ threadId, location: thread.providerId === "codex"
-        ? { threadId }
-        : thread.environmentId ? { environmentId: thread.environmentId } : null });
+      if (active) setResolved({ threadId, location: resolvedThreadLocation(thread, threadId, providers) });
     }).catch(() => { if (active) setResolved({ threadId, location: null }); });
     return () => { active = false; };
-  }, [enabled, sdk, threadId]);
+  }, [enabled, sdk, threadId, providers]);
   return resolved?.threadId === threadId ? resolved?.location ?? null : null;
 }
 
-function useSidebarLocation(enabled: boolean): QuotaLocation | null {
+function useSidebarLocation(enabled: boolean) {
   const current = useComposer();
   const composers = useComposers();
   const { threadId } = useBbContext();
-  const selected = useStableLocation(selectedLocation(current, composers));
-  const fromThread = useThreadLocation(threadId, enabled && !selected && current.scope.kind !== "new-thread");
+  const providers = useQuotaProviders(`${current.selection?.providerId}:${threadId}`, enabled);
+  const selected = useStableLocation(selectedLocation(current, composers, providers));
+  const fromThread = useThreadLocation(threadId, enabled && !selected && current.scope.kind !== "new-thread", providers);
   if (!enabled) return null;
   // An unresolved/new machine is never replaced by an arbitrary known host.
   // Without a selected composer/machine or route thread (system pages), hide.
-  return selected ?? fromThread;
+  const location = selected ?? fromThread;
+  const provider = providers.find(item => item.id === location?.providerId);
+  return location && provider ? { location, provider } : null;
 }
 
 function panelVisible(panel: HTMLElement | null) {
@@ -164,12 +174,13 @@ function SidebarQuota({ Quota }: { Quota: QuotaComponent }) {
   useEffect(() => {
     if (enabled) return mountSidebarQuota(pluginId, setTarget);
   }, [enabled, pluginId]);
-  const location = useSidebarLocation(enabled && target !== null);
+  const selection = useSidebarLocation(enabled && target !== null);
+  const location = selection?.location;
   useLayoutEffect(() => {
     if (target) target.style.display = location ? "flex" : "none";
   }, [target, location]);
-  return enabled && target && location
-    ? createPortal(<Quota key={JSON.stringify(location)} location={location} surface="sidebar" />, target) : null;
+  return enabled && target && selection
+    ? createPortal(<Quota key={JSON.stringify(selection.location)} {...selection} surface="sidebar" />, target) : null;
 }
 
 /** Call inside definePluginApp; ComposerQuota supplies the existing ring/card. */

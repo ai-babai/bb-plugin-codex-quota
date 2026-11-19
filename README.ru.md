@@ -91,4 +91,4 @@ npm run check
 
 </details>
 
-[Проверки качества](docs/QUALITY.md) · [Карта проекта](INDEX.md) · [Лицензия MIT](LICENSE)
+[Подключить сборщик лимитов](docs/PROVIDERS.md) · [Проверки качества](docs/QUALITY.md) · [Карта проекта](INDEX.md) · [Лицензия MIT](LICENSE)

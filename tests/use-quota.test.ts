@@ -1,13 +1,16 @@
 // @vitest-environment jsdom
 import { act, renderHook, cleanup } from "@testing-library/react";
-import { afterEach, expect, it, vi } from "vitest";
-import { useQuota } from "../lib/use-quota";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { useQuota, useQuotaProviders } from "../lib/use-quota";
 import type { Quota } from "../server";
 
 const rpc = vi.hoisted(() => ({ call: vi.fn() }));
+const client = vi.hoisted(() => ({ current: {} as { call: ReturnType<typeof vi.fn> } }));
 const location = { threadId: "thread-a" };
 
-vi.mock("@get-bb/plugin-sdk/app", () => ({ useRpc: () => rpc }));
+vi.mock("@get-bb/plugin-sdk/app", () => ({ useRpc: () => client.current, useRealtimeConnectionState: () => "connected" }));
+
+beforeEach(() => { client.current = { call: rpc.call }; });
 
 afterEach(() => {
   cleanup();
@@ -80,4 +83,26 @@ it("skips scheduled reads while hidden and resumes with a cached read", async ()
   await act(() => vi.advanceTimersByTimeAsync(2_000));
   expect(rpc.call).toHaveBeenCalledTimes(3);
   expect(rpc.call).toHaveBeenLastCalledWith("quota", { threadId: "thread-a", refresh: true });
+});
+
+it("shares one provider discovery in flight across three visible surfaces", async () => {
+  const providers = [{ id: "unknown", label: "Unknown", capabilities: { resets: false } }];
+  let finish!: (value: { providers: typeof providers }) => void;
+  rpc.call.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+  const view = renderHook(() => [useQuotaProviders("main"), useQuotaProviders("side"), useQuotaProviders("rail")]);
+  expect(rpc.call).toHaveBeenCalledExactlyOnceWith("listProviders", {});
+  await act(async () => { finish({ providers }); });
+  expect(view.result.current).toEqual([providers, providers, providers]);
+});
+
+it("does not cache discovery failure and retries on focus without a timer", async () => {
+  const providers = [{ id: "unknown", label: "Unknown", capabilities: { resets: false } }];
+  rpc.call.mockRejectedValueOnce(new Error("temporary"));
+  rpc.call.mockResolvedValueOnce({ providers });
+  const view = renderHook(() => useQuotaProviders("selected"));
+  await act(async () => {});
+  expect(view.result.current).toEqual([]);
+  await act(async () => { window.dispatchEvent(new Event("focus")); });
+  expect(rpc.call).toHaveBeenCalledTimes(2);
+  expect(view.result.current).toEqual(providers);
 });

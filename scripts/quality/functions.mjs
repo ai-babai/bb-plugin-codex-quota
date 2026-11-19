@@ -52,7 +52,9 @@ function functionLocations(source, filePath) {
       functions.push({ name: [...functionNames, kind].join(" › "), loc, head: loc, body: loc, kind });
     }
     for (const key of visitorKeys[node.type] ?? []) {
-      for (const child of [].concat(node[key] ?? [])) walk(child, [node, parent], functionNames);
+      for (const child of [].concat(node[key] ?? [])) {
+        if (child) walk(child, [node, parent], functionNames);
+      }
     }
   }
   walk(ast, [], []);

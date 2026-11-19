@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComposerSelection } from "@get-bb/plugin-sdk/app";
 import type { ComponentType } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { Quota, QuotaWindow } from "../server";
 import { mountUsageFooter } from "../lib/usage-footer";
 
-const { rpc, customize, register, settings, composer } = vi.hoisted(() => ({
+const { rpc, client, customize, register, settings, composer } = vi.hoisted(() => ({
   rpc: { call: vi.fn() },
+  client: { current: {} as { call: ReturnType<typeof vi.fn> } },
   customize: vi.fn(),
   register: vi.fn(),
   settings: { values: { language: "en", showInChat: true, refreshIntervalSeconds: 0, refreshOnHover: true, refreshOnPress: true } },
@@ -20,7 +21,8 @@ vi.mock("@get-bb/plugin-sdk/app", () => ({
   }),
   useComposer: () => composer,
   useSettings: () => settings,
-  useRpc: () => rpc,
+  useRpc: () => client.current,
+  useRealtimeConnectionState: () => "connected",
   experimental_Icon: () => null,
 }));
 import "../app";
@@ -52,12 +54,19 @@ function windowData(kind: QuotaWindow["kind"], remaining: number, untilHours: nu
     resetsAt: untilHours === null ? null : new Date(Date.now() + untilHours * 3_600_000).toISOString() };
 }
 
+const providers = [{ id: "codex", label: "Codex", capabilities: { resets: true } }];
+
 function respondWith(data: Quota) {
-  rpc.call.mockImplementation(async (method: string) => method === "quota" ? data : { count: 2 });
+  rpc.call.mockImplementation(async (method: string) => {
+    if (method === "listProviders") return { providers };
+    return method === "quota" ? data : { count: 2 };
+  });
 }
 
 beforeEach(() => {
   rpc.call.mockReset();
+  client.current = { call: rpc.call };
+  rpc.call.mockResolvedValue({ providers });
   composer.selection.providerId = "codex";
   Object.assign(settings.values, { language: "en", showInChat: true, refreshOnHover: true, refreshOnPress: true });
 });
@@ -75,7 +84,7 @@ it("places the ring beside context, shows the tightest limit and each reported r
   expect(screen.getAllByRole("meter").map(meter => [meter.getAttribute("aria-label"), meter.getAttribute("aria-valuenow")]))
     .toEqual([["5 hours: left", "78"], ["Weekly: left", "46"], ["Daily: left", "90"], ["Project limit: left", "100"]]);
   expect(screen.getAllByText("Resets in")).toHaveLength(3);
-  expect(rpc.call).toHaveBeenCalledWith("quota", { threadId: "example", refresh: true });
+  expect(rpc.call).toHaveBeenCalledWith("quota", { threadId: "example", providerId: "codex", refresh: true });
 });
 
 it("uses the saved language and refresh triggers and marks elapsed windows stale", async () => {
@@ -86,15 +95,16 @@ it("uses the saved language and refresh triggers and marks elapsed windows stale
   fireEvent.pointerOver(ring, { pointerType: "mouse" });
   expect(await screen.findByText("Ожидаем обновления квоты")).toBeTruthy();
   expect(screen.getByText("10% осталось · устарело")).toBeTruthy();
-  expect(rpc.call).not.toHaveBeenCalledWith("quota", { threadId: "example", refresh: true });
+  expect(rpc.call).not.toHaveBeenCalledWith("quota", { threadId: "example", providerId: "codex", refresh: true });
   fireEvent.click(ring);
-  expect(rpc.call).toHaveBeenCalledWith("quota", { threadId: "example", refresh: true });
+  expect(rpc.call).toHaveBeenCalledWith("quota", { threadId: "example", providerId: "codex", refresh: true });
 });
 
 it("distinguishes waiting for the first read from a failed read", async () => {
   settings.values.refreshOnHover = false;
   let finish!: (quota: Quota) => void;
-  rpc.call.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+  rpc.call.mockImplementation((method: string) => method === "listProviders" ? Promise.resolve({ providers })
+    : new Promise(resolve => { finish = resolve; }));
   showDisk();
   const ring = await screen.findByRole("button", { name: "Codex subscription: Quota unavailable" });
   fireEvent.pointerOver(ring, { pointerType: "mouse" });
@@ -110,11 +120,12 @@ it("hides the composer ring and skips quota reads when chat placement is disable
   expect(rpc.call).not.toHaveBeenCalled();
 });
 
-it("leaves other providers' composers alone", () => {
+it("leaves unregistered providers' composers alone", async () => {
   composer.selection.providerId = "other";
   showDisk();
   expect(screen.queryByRole("button", { name: /Codex/ })).toBeNull();
-  expect(rpc.call).not.toHaveBeenCalled();
+  await waitFor(() => expect(rpc.call).toHaveBeenCalledWith("listProviders", {}));
+  expect(rpc.call.mock.calls.some(([method]) => method === "quota")).toBe(false);
 });
 
 it("shows the selected machine’s limits before the first prompt and clears them when the selection changes", async () => {
@@ -131,17 +142,17 @@ it("shows the selected machine’s limits before the first prompt and clears the
   const view = render(draft());
   const ring = await screen.findByRole("button", { name: /65% left/ });
   expect(screen.getByRole("button", { name: "Permission mode" }).nextElementSibling?.contains(ring)).toBe(true);
-  expect(rpc.call).toHaveBeenCalledWith("quota", { hostId: "host-a", refresh: false });
+  expect(rpc.call).toHaveBeenCalledWith("quota", { hostId: "host-a", providerId: "codex", refresh: false });
   composer.selection.environment = { type: "reuse", environmentId: "env-b" };
   respondWith(quota([windowData("weekly", 20, 52)]));
   view.rerender(draft());
   expect(screen.queryByRole("button", { name: /65% left/ })).toBeNull();
   await screen.findByRole("button", { name: /20% left/ });
-  expect(rpc.call).toHaveBeenCalledWith("quota", { environmentId: "env-b", refresh: false });
+  expect(rpc.call).toHaveBeenCalledWith("quota", { environmentId: "env-b", providerId: "codex", refresh: false });
   composer.selection.environment = { type: "host", hostId: "host-c", workspace: { type: "personal" } };
   view.rerender(draft());
   await screen.findByRole("button", { name: /20% left/ });
-  expect(rpc.call).toHaveBeenCalledWith("quota", { hostId: "host-c", refresh: false });
+  expect(rpc.call).toHaveBeenCalledWith("quota", { hostId: "host-c", providerId: "codex", refresh: false });
   rpc.call.mockClear();
   composer.selection.environment = { type: "project-default" };
   view.rerender(draft());

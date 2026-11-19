@@ -20,6 +20,10 @@ The GitHub READMEs begin with their visible heading because GitHub displays YAML
 - [lib/usage-footer.ts](lib/usage-footer.ts) — footer placement and cleanup.
 - [lib/quota-popover.tsx](lib/quota-popover.tsx) — hover, click and keyboard behavior.
 
+## Development
+
+- [Quota collectors](docs/PROVIDERS.md) — register a provider and report host-scoped quota windows.
+
 ## Release materials
 
 - [Release guide](docs/RELEASE.md) — validation, publication and approval requirements.
