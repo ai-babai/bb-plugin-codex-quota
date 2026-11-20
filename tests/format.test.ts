@@ -63,3 +63,25 @@ it.each([
     expect(Number(rendered.replace(",", "."))).toBe(Math.trunc((thousandths + 50) / 100) / 10);
   }
 });
+
+it.each(["en", "ru"])("names a reset by time today, weekday this week and date otherwise in %s", language => {
+  const locale = language === "ru" ? "ru-RU" : "en-US";
+  const hour = language === "ru" ? "2-digit" : "numeric";
+  const shapes = {
+    time: new Intl.DateTimeFormat(locale, { hour, minute: "2-digit" }),
+    weekday: new Intl.DateTimeFormat(locale, { weekday: "short", hour, minute: "2-digit" }),
+    date: new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", hour, minute: "2-digit" }),
+  };
+  const { formatReset, formatFullDate } = getQuotaFormat(language);
+  const now = new Date(2026, 10, 20, 12, 30).getTime();
+  const at = (days: number, hours: number, minutes = 0) => new Date(2026, 10, 20 + days, hours, minutes);
+  const cases: [Date, keyof typeof shapes][] = [
+    [at(-7, 12, 30), "date"], [at(-7, 13), "date"], [at(-1, 23, 59), "date"], [at(-30, 9), "date"],
+    [at(0, 0), "time"], [at(0, 12, 29), "time"], [at(0, 23, 59), "time"],
+    [at(1, 0), "weekday"], [at(6, 23, 59), "weekday"], [at(7, 0), "date"], [at(40, 9), "date"],
+  ];
+  for (const [when, shape] of cases) {
+    expect(formatReset(when.toISOString(), now), `${when.toString()}`).toBe(shapes[shape].format(when));
+  }
+  expect(formatFullDate(at(-7, 13).toISOString())).toContain("2026");
+});

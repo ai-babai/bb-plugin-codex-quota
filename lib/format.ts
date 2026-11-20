@@ -17,6 +17,12 @@ const ru = quotaFormat("ru-RU", {
   fiveHour: "5 часов", daily: "Сутки", weekly: "Неделя", day: "д", hour: "ч", minute: "мин",
 });
 
+/** Local calendar days from one date to another, independent of the time of day and DST. */
+function calendarDays(from: Date, to: Date) {
+  const day = (value: Date) => Date.UTC(value.getFullYear(), value.getMonth(), value.getDate());
+  return Math.round((day(to) - day(from)) / 86_400_000);
+}
+
 function quotaFormat(locale: string, text: typeof english) {
   // Russian uses a 24-hour clock with a leading zero; English keeps "2:23 AM".
   const hour = locale === "ru-RU" ? "2-digit" : "numeric";
@@ -35,12 +41,13 @@ function quotaFormat(locale: string, text: typeof english) {
     },
     percent: new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }),
     formatDate: (value: string) => date.format(new Date(value)),
-    /** As short as stays unambiguous: today's time, this week's weekday, else the date. */
+    /** As short as stays unambiguous: today the time, the next six days the weekday, otherwise
+     * (including any earlier day) the date. */
     formatReset(value: string, now: number) {
       const when = new Date(value);
-      const today = new Date(now);
-      if (when.toDateString() === today.toDateString()) return clock.format(when);
-      return (when.getTime() - now < 6 * 86_400_000 ? weekday : date).format(when);
+      const days = calendarDays(new Date(now), when);
+      if (days === 0) return clock.format(when);
+      return (days > 0 && days < 7 ? weekday : date).format(when);
     },
     formatFullDate: (value: string) => full.format(new Date(value)),
     formatCountdown: (milliseconds: number) => formatCountdown(milliseconds, text),

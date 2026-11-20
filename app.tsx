@@ -32,11 +32,13 @@ function remainingColor(remaining: number, current: boolean) {
 /** One line: the countdown leads, the reset moment follows in a quieter, shorter form. */
 function ResetTime({ date, until, now, format }: { date: string; until: number; now: number; format: QuotaFormat }) {
   const { text, formatReset, formatFullDate, formatCountdown } = format;
+  const full = formatFullDate(date);
   return <div className="flex flex-wrap items-baseline justify-between gap-x-3 leading-4 tabular-nums">
     {until > 0
       ? <span><span className="text-muted-foreground">{text.resetsIn}</span> <span className="font-medium">{formatCountdown(until)}</span></span>
       : <span className="text-muted-foreground">{text.waiting}</span>}
-    <time className="ml-auto text-[11px] text-muted-foreground/80" dateTime={date} title={formatFullDate(date)}>{formatReset(date, now)}</time>
+    <time className="ml-auto text-[11px] text-muted-foreground/80" dateTime={date}
+      title={full} aria-label={full}>{formatReset(date, now)}</time>
   </div>;
 }
 
