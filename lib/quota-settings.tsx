@@ -16,13 +16,13 @@ const copy = {
     settings: "Settings", back: "Back", interval: "Refresh every", show: "Show ring", intervalLabel: "Refresh interval, seconds", unit: "s", help: "About auto-refresh", off: "0 disables auto-refresh",
     chat: "In chat", sidebar: "In sidebar", save: "Save", retry: "Retry",
     saving: "Saving…", saved: "Saved", failed: "Could not save. Try again.", unavailable: "Settings unavailable",
-    invalid: `Enter a whole number from 0 to ${maxIntervalSeconds}.`,
+    invalid: `Enter a whole number from 0 to ${maxIntervalSeconds.toLocaleString("en-US")}.`,
   },
   ru: {
     settings: "Настройки", back: "Назад", interval: "Обновлять раз в", show: "Показывать кольцо", intervalLabel: "Обновление, секунды", unit: "с", help: "Об автообновлении", off: "0 отключает автообновление",
     chat: "В чате", sidebar: "В боковой панели", save: "Сохранить", retry: "Повторить",
     saving: "Сохранение…", saved: "Сохранено", failed: "Не удалось сохранить. Попробуйте ещё раз.", unavailable: "Настройки недоступны",
-    invalid: `Введите целое число от 0 до ${maxIntervalSeconds}.`,
+    invalid: `Введите целое число от 0 до ${maxIntervalSeconds.toLocaleString("ru-RU")}.`,
   },
 };
 
@@ -187,7 +187,7 @@ function QuotaSettingsForm({ initial, language, surface, backButton }: {
             <label htmlFor={`${id}-interval`}>{text.interval}</label>
             <IntervalHelp id={`${id}-interval-help`} label={text.help} text={text.off} />
           </div>
-          <label className="ml-auto inline-flex h-6 cursor-text items-baseline gap-0.5 self-center rounded border border-border bg-background px-1.5 leading-5 focus-within:border-ring">
+          <label className="ml-auto inline-flex h-6 cursor-text items-baseline gap-0.5 self-center rounded border border-border bg-background px-1.5 leading-5 focus-within:border-ring has-[[aria-invalid=true]]:border-destructive!">
             <input id={`${id}-interval`} type="number" inputMode="numeric" min={0} max={maxIntervalSeconds} step={1} required
               value={interval} aria-label={text.intervalLabel} aria-invalid={invalid || undefined}
               aria-describedby={invalid ? `${id}-interval-error` : `${id}-interval-help`}

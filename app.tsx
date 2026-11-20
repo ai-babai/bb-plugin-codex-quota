@@ -12,7 +12,7 @@ import { useQuota, useQuotaProviders } from "./lib/use-quota";
 
 // Every window uses the same full-width, right-anchored track, so bars compare
 // directly and deplete from left to right.
-const trackClass = "flex h-2 w-full justify-end overflow-hidden rounded-full bg-border";
+const trackClass = "flex h-2 w-full justify-end overflow-hidden rounded-full bg-muted-foreground/20";
 
 type QuotaFormat = ReturnType<typeof getQuotaFormat>;
 
@@ -37,7 +37,7 @@ function ResetTime({ date, until, now, format }: { date: string; until: number; 
     {until > 0
       ? <span><span className="text-muted-foreground">{text.resetsIn}</span> <span className="font-medium">{formatCountdown(until)}</span></span>
       : <span className="text-muted-foreground">{text.waiting}</span>}
-    <time className="ml-auto text-[11px] text-muted-foreground/80" dateTime={date}
+    <time className="ml-auto text-muted-foreground" dateTime={date}
       title={full} aria-label={full}>{formatReset(date, now)}</time>
   </div>;
 }
