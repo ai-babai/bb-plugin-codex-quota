@@ -192,12 +192,20 @@ function QuotaSettingsForm({ initial, language, surface, backButton }: {
             <label htmlFor={`${id}-interval`}>{text.interval}</label>
             <IntervalHelp id={`${id}-interval-help`} label={text.help} text={text.off} />
           </div>
-          <label className="ml-auto inline-flex h-7 cursor-text items-baseline gap-1 self-center rounded border border-transparent bg-muted px-2 leading-[26px] hover:border-border focus-within:border-ring has-[[aria-invalid=true]]:border-destructive!">
+          {/* Most of the box is padding and unit. Focus the input on press rather than on the label's
+              delayed click, and keep a pointer focus as quiet as hover; keyboard focus gets the ring. */}
+          <label className="ml-auto inline-flex h-7 cursor-text items-baseline gap-1 self-center rounded border border-transparent bg-muted px-2 leading-[26px] hover:border-border focus-within:border-ring focus-within:ring-1 focus-within:ring-ring data-[pointer]:focus-within:border-border data-[pointer]:focus-within:ring-0 has-[[aria-invalid=true]]:border-destructive!"
+            onPointerDown={event => {
+              event.currentTarget.dataset.pointer = "";
+              const input = event.currentTarget.querySelector("input");
+              if (input && event.target !== input) { event.preventDefault(); input.focus(); }
+            }}>
             <input id={`${id}-interval`} type="number" inputMode="numeric" min={0} max={maxIntervalSeconds} step={1} required
               value={interval} aria-label={text.intervalLabel} aria-invalid={invalid || undefined}
               aria-describedby={invalid ? `${id}-interval-error` : `${id}-interval-help`}
               style={{ width: `${Math.min(7, Math.max(2, interval.length))}ch` }}
               className="m-0 min-w-0 appearance-none border-0 bg-transparent p-0 text-end font-medium tabular-nums text-popover-foreground outline-none [&::-webkit-inner-spin-button]:appearance-none"
+              onBlur={event => { delete event.currentTarget.parentElement?.dataset.pointer; }}
               onChange={event => { setInterval(event.target.value); setInvalid(false); setStatus("idle"); }} />
             <span aria-hidden="true" className="text-muted-foreground">{text.unit}</span>
           </label>

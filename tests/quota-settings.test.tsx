@@ -96,6 +96,21 @@ it.each(["", "-1", "1.5", "2147484"])("rejects interval %j accessibly without pe
   expect(document.activeElement).toBe(input);
 });
 
+it("focuses the interval on press anywhere in its box and keeps pointer focus quiet until blur", () => {
+  const { ring } = mount();
+  openSettings(ring);
+  const input = screen.getByRole("spinbutton");
+  const box = input.parentElement!;
+  const unit = box.querySelector("[aria-hidden]")!;
+  expect(fireEvent.pointerDown(unit, { pointerType: "touch" })).toBe(false);
+  expect(document.activeElement).toBe(input);
+  expect(box.hasAttribute("data-pointer")).toBe(true);
+  fireEvent.blur(input);
+  expect(box.hasAttribute("data-pointer")).toBe(false);
+  fireEvent.pointerDown(input, { pointerType: "mouse" });
+  expect(box.hasAttribute("data-pointer")).toBe(true);
+});
+
 it("waits for acknowledgement, prevents duplicate saves, and keeps edits on a sanitized failure for retry", async () => {
   const { ring, updateSettings } = mount();
   let reject!: (error: Error) => void;
