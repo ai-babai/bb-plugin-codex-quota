@@ -18,7 +18,12 @@ const ru = quotaFormat("ru-RU", {
 });
 
 function quotaFormat(locale: string, text: typeof english) {
-  const date = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+  // Russian uses a 24-hour clock with a leading zero; English keeps "2:23 AM".
+  const hour = locale === "ru-RU" ? "2-digit" : "numeric";
+  const date = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", hour, minute: "2-digit" });
+  const weekday = new Intl.DateTimeFormat(locale, { weekday: "short", hour, minute: "2-digit" });
+  const clock = new Intl.DateTimeFormat(locale, { hour, minute: "2-digit" });
+  const full = new Intl.DateTimeFormat(locale, { dateStyle: "full", timeStyle: "short" });
   const monthDay = new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" });
   const fullDate = new Intl.DateTimeFormat(locale, { dateStyle: "medium" });
   const time = new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" });
@@ -30,6 +35,14 @@ function quotaFormat(locale: string, text: typeof english) {
     },
     percent: new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }),
     formatDate: (value: string) => date.format(new Date(value)),
+    /** As short as stays unambiguous: today's time, this week's weekday, else the date. */
+    formatReset(value: string, now: number) {
+      const when = new Date(value);
+      const today = new Date(now);
+      if (when.toDateString() === today.toDateString()) return clock.format(when);
+      return (when.getTime() - now < 6 * 86_400_000 ? weekday : date).format(when);
+    },
+    formatFullDate: (value: string) => full.format(new Date(value)),
     formatCountdown: (milliseconds: number) => formatCountdown(milliseconds, text),
   };
 }

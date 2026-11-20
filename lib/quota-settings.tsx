@@ -91,11 +91,11 @@ export function QuotaSettingsCard({ children, surface = "chat" }: {
 }
 
 function SettingSwitch({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
-  return <label className="-mx-1 flex min-h-6 cursor-pointer items-center justify-between gap-2 rounded px-1 hover:bg-state-hover active:bg-muted">
+  return <label className="-mx-1 flex min-h-7 cursor-pointer items-center justify-between gap-2 rounded px-1 hover:bg-state-hover active:bg-muted">
     {label}
     <input type="checkbox" role="switch" checked={checked} className="peer sr-only" onChange={event => onChange(event.target.checked)} />
-    <span aria-hidden="true" className="inline-flex h-3.5 w-6 shrink-0 items-center rounded-full bg-muted-foreground/40 p-0.5 peer-checked:bg-teal-600 peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-popover dark:peer-checked:bg-teal-400">
-      <span className={`size-2.5 rounded-full bg-background shadow-sm transition-transform motion-reduce:transition-none ${checked ? "translate-x-2.5" : "translate-x-0"}`} />
+    <span aria-hidden="true" className="inline-flex h-4 w-7 shrink-0 items-center rounded-full bg-muted-foreground/40 p-0.5 peer-checked:bg-teal-600 peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-popover dark:peer-checked:bg-teal-400">
+      <span className={`size-3 rounded-full bg-background shadow-sm transition-transform motion-reduce:transition-none ${checked ? "translate-x-3" : "translate-x-0"}`} />
     </span>
   </label>;
 }
@@ -175,18 +175,18 @@ function QuotaSettingsForm({ initial, language, surface, backButton }: {
     }
   }
 
-  return <form aria-label={text.settings} className="grid gap-1 text-[11px] leading-4" noValidate onSubmit={event => { void save(event); }} lang={locale}>
+  return <form aria-label={text.settings} className="grid gap-1.5 text-xs leading-4" noValidate onSubmit={event => { void save(event); }} lang={locale}>
     <div className="flex items-center justify-between gap-2">
       {backButton}
       <SaveButton status={status} dirty={dirty} text={text} />
     </div>
     <fieldset disabled={status === "saving"} className="grid min-w-0 gap-0.5 disabled:opacity-60">
-      <div className="flex min-h-6 items-center justify-between gap-1">
+      <div className="flex min-h-7 items-center justify-between gap-1">
         <div className="flex items-center">
           <label htmlFor={`${id}-interval`}>{text.interval}</label>
           <IntervalHelp id={`${id}-interval-help`} label={text.help} text={text.off} />
         </div>
-        <label className="inline-flex h-[22px] cursor-text items-baseline gap-0.5 self-center rounded border border-border bg-background px-1.5 leading-5 focus-within:border-ring">
+        <label className="inline-flex h-6 cursor-text items-baseline gap-0.5 self-center rounded border border-border bg-background px-1.5 leading-5 focus-within:border-ring">
           <input id={`${id}-interval`} type="number" inputMode="numeric" min={0} max={maxIntervalSeconds} step={1} required
             value={interval} aria-label={text.intervalLabel} aria-invalid={invalid || undefined}
             aria-describedby={invalid ? `${id}-interval-error` : `${id}-interval-help`}

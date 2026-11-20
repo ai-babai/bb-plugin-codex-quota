@@ -29,14 +29,14 @@ function remainingColor(remaining: number, current: boolean) {
   return "bg-emerald-500";
 }
 
-/** One line: countdown first, the exact reset date after it. */
-function ResetTime({ date, until, format }: { date: string; until: number; format: QuotaFormat }) {
-  const { text, formatDate, formatCountdown } = format;
-  return <div className="flex flex-wrap items-baseline justify-between gap-x-2 text-muted-foreground tabular-nums">
+/** One line: the countdown leads, the reset moment follows in a quieter, shorter form. */
+function ResetTime({ date, until, now, format }: { date: string; until: number; now: number; format: QuotaFormat }) {
+  const { text, formatReset, formatFullDate, formatCountdown } = format;
+  return <div className="flex flex-wrap items-baseline justify-between gap-x-3 leading-4 tabular-nums">
     {until > 0
-      ? <span><span>{text.resetsIn}</span> <span className="font-medium text-popover-foreground">{formatCountdown(until)}</span></span>
-      : <span>{text.waiting}</span>}
-    <time className="ml-auto" dateTime={date}>{formatDate(date)}</time>
+      ? <span><span className="text-muted-foreground">{text.resetsIn}</span> <span className="font-medium">{formatCountdown(until)}</span></span>
+      : <span className="text-muted-foreground">{text.waiting}</span>}
+    <time className="ml-auto text-[11px] text-muted-foreground/80" dateTime={date} title={formatFullDate(date)}>{formatReset(date, now)}</time>
   </div>;
 }
 
@@ -54,10 +54,12 @@ function QuotaBar({ label, remaining, remainingLabel, tone, timeLeft }: {
       aria-valuenow={remaining} aria-valuetext={remainingLabel} className={trackClass}>
       <div className={`h-full rounded-full ${tone}`} style={{ width: `${remaining}%` }} />
     </div>
-    {/* Even-pace marker: a fill reaching past it means quota outlasts the window. */}
+    {/* Even-pace marker: a fill reaching past it means quota outlasts the window. A popover-coloured
+        cut on both sides keeps it legible on any fill and on the empty track; clamping keeps it whole
+        beside the rounded ends. */}
     {timeLeft !== null && <span aria-hidden="true" data-codex-quota-pace=""
-      className="pointer-events-none absolute -inset-y-0.5 w-0.5 -translate-x-1/2 rounded-full bg-popover-foreground/70 ring-1 ring-popover"
-      style={{ left: `${100 - timeLeft}%` }} />}
+      className="pointer-events-none absolute -inset-y-[3px] w-0.5 -translate-x-1/2 rounded-full bg-popover-foreground ring-2 ring-popover"
+      style={{ left: `clamp(4px, ${100 - timeLeft}%, calc(100% - 4px))` }} />}
   </div>;
 }
 
@@ -81,14 +83,14 @@ function WindowRow({ window, fresh, now, format }: {
   const current = fresh && (Number.isNaN(until) || until > 0);
   const tone = remainingColor(window.remaining, current);
   const amount = `${percent.format(window.remaining)}%`;
-  return <div className="grid gap-1.5">
-    <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+  return <div className="grid gap-2">
+    <div className="flex flex-wrap items-baseline justify-between gap-x-2 leading-4">
       <span className="min-w-0 wrap-anywhere">{label}</span>
       <RemainingAmount amount={amount} used={`${percent.format(100 - window.remaining)}% ${text.used}`} current={current} text={text} />
     </div>
     <QuotaBar label={`${label}: ${text.remaining}`} remaining={window.remaining} remainingLabel={`${amount} ${text.remaining}`}
       tone={tone} timeLeft={timeLeftPercent(until, standard?.hours)} />
-    {window.resetsAt && Number.isFinite(until) && <ResetTime date={window.resetsAt} until={until} format={format} />}
+    {window.resetsAt && Number.isFinite(until) && <ResetTime date={window.resetsAt} until={until} now={now} format={format} />}
   </div>;
 }
 
@@ -158,7 +160,7 @@ function QuotaWindows({ data, loading, now, fresh, format }: {
   if (data?.error || !data?.account?.windows.length) {
     return <p role="status" className="text-muted-foreground">{format.text.unavailable}</p>;
   }
-  return <div className="grid gap-3">{data.account.windows.map(window =>
+  return <div className="grid gap-3.5">{data.account.windows.map(window =>
     <WindowRow key={window.id} window={window} fresh={fresh} now={now} format={format} />)}</div>;
 }
 
