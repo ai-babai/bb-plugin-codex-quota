@@ -18,7 +18,7 @@ const ru = quotaFormat("ru-RU", {
 });
 
 function quotaFormat(locale: string, text: typeof english) {
-  const date = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const date = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
   const monthDay = new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" });
   const fullDate = new Intl.DateTimeFormat(locale, { dateStyle: "medium" });
   const time = new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" });

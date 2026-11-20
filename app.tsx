@@ -10,7 +10,9 @@ import { getQuotaFormat, isFresh } from "./lib/format";
 import type { Quota, QuotaLocation, QuotaProvider, QuotaWindow } from "./server";
 import { useQuota, useQuotaProviders } from "./lib/use-quota";
 
-const trackClass = "flex h-1.5 w-full justify-end overflow-hidden rounded-full bg-border";
+// Every window uses the same full-width, right-anchored track, so bars compare
+// directly and deplete from left to right.
+const trackClass = "flex h-2 w-full justify-end overflow-hidden rounded-full bg-border";
 
 type QuotaFormat = ReturnType<typeof getQuotaFormat>;
 
@@ -27,23 +29,46 @@ function remainingColor(remaining: number, current: boolean) {
   return "bg-emerald-500";
 }
 
-function ResetTime({ date, until, hours, format }: {
-  date: string; until: number; hours?: number; format: QuotaFormat;
-}) {
+/** One line: countdown first, the exact reset date after it. */
+function ResetTime({ date, until, format }: { date: string; until: number; format: QuotaFormat }) {
   const { text, formatDate, formatCountdown } = format;
-  const timePercent = hours === undefined ? null : Math.min(100, Math.max(0, until) / (hours * 3_600_000) * 100);
-  return <div className="grid gap-1 text-muted-foreground tabular-nums">
-    <div className="flex flex-wrap items-baseline justify-between gap-x-2">
-      {until > 0 ? <>
-        <span>{text.resetsIn}</span>
-        <span className="ml-auto font-medium text-popover-foreground">{formatCountdown(until)}</span>
-      </> : <span>{text.waiting}</span>}
-    </div>
-    {timePercent !== null && <div aria-hidden="true" className={trackClass}>
-      <div className="h-full rounded-full bg-muted-foreground/50" style={{ width: `${timePercent}%` }} />
-    </div>}
-    <time className="text-end" dateTime={date}>{formatDate(date)}</time>
+  return <div className="flex flex-wrap items-baseline justify-between gap-x-2 text-muted-foreground tabular-nums">
+    {until > 0
+      ? <span><span>{text.resetsIn}</span> <span className="font-medium text-popover-foreground">{formatCountdown(until)}</span></span>
+      : <span>{text.waiting}</span>}
+    <time className="ml-auto" dateTime={date}>{formatDate(date)}</time>
   </div>;
+}
+
+/** Share of the window's time still ahead, on the same right-anchored scale as the quota. */
+function timeLeftPercent(until: number, hours: number | undefined) {
+  if (hours === undefined || !(until > 0)) return null;
+  return Math.min(100, until / (hours * 3_600_000) * 100);
+}
+
+function QuotaBar({ label, remaining, remainingLabel, tone, timeLeft }: {
+  label: string; remaining: number; remainingLabel: string; tone: string; timeLeft: number | null;
+}) {
+  return <div className="relative">
+    <div role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={100}
+      aria-valuenow={remaining} aria-valuetext={remainingLabel} className={trackClass}>
+      <div className={`h-full rounded-full ${tone}`} style={{ width: `${remaining}%` }} />
+    </div>
+    {/* Even-pace marker: a fill reaching past it means quota outlasts the window. */}
+    {timeLeft !== null && <span aria-hidden="true" data-codex-quota-pace=""
+      className="pointer-events-none absolute -inset-y-0.5 w-0.5 -translate-x-1/2 rounded-full bg-popover-foreground/70 ring-1 ring-popover"
+      style={{ left: `${100 - timeLeft}%` }} />}
+  </div>;
+}
+
+/** The number reads first; the unit and any staleness note stay secondary. */
+function RemainingAmount({ amount, used, current, text }: {
+  amount: string; used: string; current: boolean; text: QuotaFormat["text"];
+}) {
+  return <span className="tabular-nums" data-codex-quota-remaining="" title={used}>
+    <span className={`text-sm leading-none font-semibold ${current ? "" : "text-muted-foreground"}`}>{amount}</span>
+    <span className="text-muted-foreground"> {text.remaining}{current ? "" : ` · ${text.stale}`}</span>
+  </span>;
 }
 
 function WindowRow({ window, fresh, now, format }: {
@@ -55,20 +80,15 @@ function WindowRow({ window, fresh, now, format }: {
   const until = window.resetsAt ? Date.parse(window.resetsAt) - now : NaN;
   const current = fresh && (Number.isNaN(until) || until > 0);
   const tone = remainingColor(window.remaining, current);
-  const remainingLabel = `${percent.format(window.remaining)}% ${text.remaining}`;
-  return <div className="grid gap-2">
-    <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+  const amount = `${percent.format(window.remaining)}%`;
+  return <div className="grid gap-1.5">
+    <div className="flex flex-wrap items-baseline justify-between gap-x-2">
       <span className="min-w-0 wrap-anywhere">{label}</span>
-      <span className="font-medium tabular-nums" title={`${percent.format(100 - window.remaining)}% ${text.used}`}>
-        {remainingLabel}{!current ? ` · ${text.stale}` : ""}
-      </span>
+      <RemainingAmount amount={amount} used={`${percent.format(100 - window.remaining)}% ${text.used}`} current={current} text={text} />
     </div>
-    <div role="meter" aria-label={`${label}: ${text.remaining}`} aria-valuemin={0} aria-valuemax={100}
-      aria-valuenow={window.remaining} aria-valuetext={remainingLabel} className={trackClass}>
-      <div className={`h-full rounded-full ${tone}`} style={{ width: `${window.remaining}%` }} />
-    </div>
-    {window.resetsAt && Number.isFinite(until) &&
-      <ResetTime date={window.resetsAt} until={until} hours={standard?.hours} format={format} />}
+    <QuotaBar label={`${label}: ${text.remaining}`} remaining={window.remaining} remainingLabel={`${amount} ${text.remaining}`}
+      tone={tone} timeLeft={timeLeftPercent(until, standard?.hours)} />
+    {window.resetsAt && Number.isFinite(until) && <ResetTime date={window.resetsAt} until={until} format={format} />}
   </div>;
 }
 
@@ -138,8 +158,8 @@ function QuotaWindows({ data, loading, now, fresh, format }: {
   if (data?.error || !data?.account?.windows.length) {
     return <p role="status" className="text-muted-foreground">{format.text.unavailable}</p>;
   }
-  return data.account.windows.map(window =>
-    <WindowRow key={window.id} window={window} fresh={fresh} now={now} format={format} />);
+  return <div className="grid gap-3">{data.account.windows.map(window =>
+    <WindowRow key={window.id} window={window} fresh={fresh} now={now} format={format} />)}</div>;
 }
 
 function QuotaRing({ remaining, loading }: { remaining: number | null; loading: boolean }) {
@@ -147,7 +167,7 @@ function QuotaRing({ remaining, loading }: { remaining: number | null; loading: 
     <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="4" opacity="0.18" />
     {loading && <circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
       pathLength="100" strokeDasharray="32 100" className="origin-center motion-safe:animate-spin" />}
-    {!loading && remaining === null && <text x="12" y="15.5" textAnchor="middle" fontSize="11" fill="currentColor">?</text>}
+    {!loading && remaining === null && <text x="12" y="15.5" textAnchor="middle" fontSize="12" fontWeight="600" fill="currentColor">?</text>}
     {remaining !== null && <>
       <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="4"
         pathLength="100" strokeDasharray={`${remaining} 100`} transform="rotate(-90 12 12)" />
