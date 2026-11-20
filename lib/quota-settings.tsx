@@ -16,13 +16,13 @@ const copy = {
     settings: "Settings", back: "Back", interval: "Refresh every", show: "Show ring", intervalLabel: "Refresh interval, seconds", unit: "s", help: "About auto-refresh", off: "0 disables auto-refresh",
     chat: "In chat", sidebar: "In sidebar", save: "Save", retry: "Retry",
     saving: "Saving…", saved: "Saved", failed: "Could not save. Try again.", unavailable: "Settings unavailable",
-    invalid: `Enter a whole number from 0 to ${maxIntervalSeconds.toLocaleString("en-US")}.`,
+    invalid: "Enter a whole number, 0 or higher.", tooLong: `Maximum interval: ${maxIntervalSeconds.toLocaleString("en-US")} s.`,
   },
   ru: {
     settings: "Настройки", back: "Назад", interval: "Обновлять раз в", show: "Показывать кольцо", intervalLabel: "Обновление, секунды", unit: "с", help: "Об автообновлении", off: "0 отключает автообновление",
     chat: "В чате", sidebar: "В боковой панели", save: "Сохранить", retry: "Повторить",
     saving: "Сохранение…", saved: "Сохранено", failed: "Не удалось сохранить. Попробуйте ещё раз.", unavailable: "Настройки недоступны",
-    invalid: `Введите целое число от 0 до ${maxIntervalSeconds.toLocaleString("ru-RU")}.`,
+    invalid: "Введите целое число не меньше нуля.", tooLong: `Максимум — ${maxIntervalSeconds.toLocaleString("ru-RU")} с.`,
   },
 };
 
@@ -197,7 +197,7 @@ function QuotaSettingsForm({ initial, language, surface, backButton }: {
             <span aria-hidden="true" className="text-muted-foreground">{text.unit}</span>
           </label>
         </div>
-        {invalid && <p id={`${id}-interval-error`} role="alert" className="px-1 text-destructive">{text.invalid}</p>}
+        {invalid && <p id={`${id}-interval-error`} role="alert" className="px-1 text-destructive">{next.refreshIntervalSeconds > maxIntervalSeconds ? text.tooLong : text.invalid}</p>}
       </div>
       <div role="group" aria-labelledby={`${id}-show`} className="grid">
         <p id={`${id}-show`} className="px-1 pb-0.5 text-[11px] text-muted-foreground">{text.show}</p>
