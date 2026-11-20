@@ -30,4 +30,5 @@ The GitHub READMEs begin with their visible heading because GitHub displays YAML
 - [Release guide](docs/RELEASE.md) — validation, publication and approval requirements.
 - [Store overview](PLUGIN_OVERVIEW.md) — long-form marketplace description.
 - [Marketplace entry](marketplace/entries/codex-quota.json) — prepared catalog entry.
-- [Screenshots](marketplace/screenshots/codex-quota/) — English dark theme and Russian light theme.
+- [README screenshots](docs/screenshots/) — Pro, sidebar settings and manual reset dates in English and Russian.
+- [Gallery images](marketplace/screenshots/codex-quota/) — the marketplace entry selects the English chat, sidebar and phone views. The Russian README uses localized images.
