@@ -56,3 +56,21 @@ file, include its path in `package.json` under `files` for npm rebuilds.
   `readAvailableResets` to hide the manual reset control. If you implement it,
   report credit `expiries` in Unix seconds, with `null` for a credit that
   never expires.
+
+## Source keys
+
+`resolveSource(location)` returns `{ sourceKey }`. The browser can pass the key
+as `expectedSourceKey` to `quota` and `availableResets`. A source change or an
+unconfirmed identity yields unavailable quota or a null reset count. Existing
+calls may omit the key and keep their original behavior. A key is opaque and
+valid for the lifetime of the plugin's server instance.
+
+The example above has one fixed source per scope. It receives a default key
+scoped to the provider, host, and any resolved environment and thread. For an
+account or resource that can change within a scope, implement `resolveSource`
+and return the server-only `{ resourceId, accountKey }` pair, or `null` when it
+cannot be confirmed. Include `source` with that pair in `readQuota`, derived
+from the same observation as the quota. Guarded `readAvailableResets` receives
+the resolved `source` to read. Verify it against the reset result and include
+the observed `source` with the result. The RPC layer keeps both identities
+server-side and exposes only the opaque key.

@@ -19,7 +19,7 @@ In this example, 78% of the five-hour quota and 46% of the weekly quota remain. 
 
 The teal ring sits beside the context meter in Codex chats and side chats, and above Settings in the left sidebar. A Codex side chat shows the quota for its machine even when the main chat uses another provider.
 
-Hover over the ring to preview each reported limit, its reset time and countdown. Click the ring to close the preview, then click again to reopen it. With the ring focused, use **Enter** or **Space** to toggle it and **Esc** to close it. A **?** means quota data is missing, at least 90 minutes old, or awaiting an update after a reset.
+Hover over the ring to preview each reported limit, its reset time and countdown. Click the ring to close the preview, then click again to reopen it. With the ring focused, use **Enter** or **Space** to toggle it and **Esc** to close it. While the first reading is loading, the ring shows a spinner. A **?** means quota data is missing, at least 90 minutes old, or awaiting an update after a reset.
 
 The lightning bolt shows the number of available manual resets, including zero. It stays hidden when the count is unknown. If resets are available, hover over or tap the bolt to check their expiry dates without using a reset.
 
@@ -35,7 +35,7 @@ The **Settings** gear beside the plan name opens **Refresh**, **In chat** and **
 
 <img src="docs/screenshots/sidebar-en.png" width="600" alt="Left sidebar in BB with the Codex Pro quota card on the left and its refresh and placement settings on the right">
 
-Opening a Codex chat refreshes its quota once, even with the timer off. By default, quota then updates every two minutes while the page is visible. Hovering over or pressing the ring also requests fresh data by default. In **Settings → Installed plugins → Codex Quota**, you can restore either ring, change those refresh triggers, or set **Language** to **English** (default) or **Русский**.
+The chat and sidebar rings share one reading for the same account on the same machine. Opening a Codex chat checks its quota automatically, even with the timer off. By default, quota refreshes every two minutes while the page is visible. Hover over or press either ring to update both. In **Settings → Installed plugins → Codex Quota**, you can restore either ring, change those refresh triggers, or set **Language** to **English** (default) or **Русский**.
 
 <details>
 <summary>Language and refresh interval from the CLI</summary>

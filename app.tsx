@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ResetCount, useAvailableResetCount } from "./lib/reset-count";
+import { ResetCount, useAvailableResetCount, type ResetSnapshot } from "./lib/reset-count";
 import { environmentLocation, registerSidebarQuota, useStableLocation } from "./lib/sidebar-quota";
 import { QuotaSettingsCard } from "./lib/quota-settings";
 import { QuotaPopover } from "./lib/quota-popover";
@@ -129,29 +129,30 @@ function remainingQuota(windows: QuotaWindow[], fresh: boolean, now: number) {
   return Math.min(...windows.map(w => w.remaining));
 }
 
-function QuotaWindows({ data, now, fresh, format }: {
-  data: Quota | null; now: number; fresh: boolean; format: QuotaFormat;
+function QuotaWindows({ data, loading, now, fresh, format }: {
+  data: Quota | null; loading: boolean; now: number; fresh: boolean; format: QuotaFormat;
 }) {
-  if (!data || (!data.error && !data.account)) {
+  if (loading) {
     return <p role="status" className="text-muted-foreground">{format.text.loading}</p>;
   }
-  if (data.error || !data.account?.windows.length) {
+  if (data?.error || !data?.account?.windows.length) {
     return <p role="status" className="text-muted-foreground">{format.text.unavailable}</p>;
   }
   return data.account.windows.map(window =>
     <WindowRow key={window.id} window={window} fresh={fresh} now={now} format={format} />);
 }
 
-function QuotaRing({ remaining }: { remaining: number | null }) {
+function QuotaRing({ remaining, loading }: { remaining: number | null; loading: boolean }) {
   return <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
     <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="4" opacity="0.18" />
-    {remaining === null
-      ? <text x="12" y="15.5" textAnchor="middle" fontSize="11" fill="currentColor">?</text>
-      : <>
-        <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="4"
-          pathLength="100" strokeDasharray={`${remaining} 100`} transform="rotate(-90 12 12)" />
-        <circle cx="12" cy="12" r="2" fill="currentColor" />
-      </>}
+    {loading && <circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
+      pathLength="100" strokeDasharray="32 100" className="origin-center motion-safe:animate-spin" />}
+    {!loading && remaining === null && <text x="12" y="15.5" textAnchor="middle" fontSize="11" fill="currentColor">?</text>}
+    {remaining !== null && <>
+      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="4"
+        pathLength="100" strokeDasharray={`${remaining} 100`} transform="rotate(-90 12 12)" />
+      <circle cx="12" cy="12" r="2" fill="currentColor" />
+    </>}
   </svg>;
 }
 
@@ -160,35 +161,41 @@ type QuotaSurface = "chat" | "sidebar";
 function ComposerQuota({ location, provider, surface = "chat", confirmedProvider = true }: { location: QuotaLocation; provider: QuotaProvider; surface?: QuotaSurface; confirmedProvider?: boolean }) {
   const { values } = useSettings();
   const interval = values?.refreshIntervalSeconds;
-  const { data, now, load } = useQuota(location, typeof interval === "number" ? interval : undefined, confirmedProvider);
+  const { data, now, load, loading, sourceKey } = useQuota(location, typeof interval === "number" ? interval : undefined, confirmedProvider);
   const fresh = isFresh(data?.account?.observedAt ?? null, now);
-  const count = useAvailableResetCount(location, data, fresh, provider.capabilities.resets);
-  return <QuotaCard surface={surface} provider={provider} location={location} data={data} now={now} fresh={fresh} count={count}
+  const snapshot = { location, sourceKey, quota: data };
+  const count = useAvailableResetCount(snapshot, fresh, provider.capabilities.resets);
+  return <QuotaCard surface={surface} provider={provider} snapshot={snapshot} loading={loading && data === null} now={now} fresh={fresh} count={count}
     format={getQuotaFormat(values?.language, provider.label)} onRefresh={input => {
       const enabled = input === "hover" ? values?.refreshOnHover : values?.refreshOnPress;
       if (enabled !== false) void load(true);
     }} />;
 }
 
-function QuotaCard({ location, surface, provider, data, now, fresh, count, format, onRefresh }: {
+function QuotaCard({ snapshot, loading, surface, provider, now, fresh, count, format, onRefresh }: {
   surface: QuotaSurface;
   provider: QuotaProvider;
-  location: QuotaLocation; data: Quota | null; now: number; fresh: boolean;
+  snapshot: ResetSnapshot; loading: boolean; now: number; fresh: boolean;
   count: number | null | undefined; format: QuotaFormat; onRefresh: (input: "hover" | "press") => void;
 }) {
   const { text, percent } = format;
+  const { quota: data, sourceKey } = snapshot;
   const account = data?.account;
   const windows = account?.windows ?? [];
   const remaining = remainingQuota(windows, fresh, now);
-  const label = `${text.title}: ${remaining === null ? text.unavailable : `${percent.format(remaining)}% ${text.remaining}`}`;
-  return <QuotaPopover surface={surface} label={label} title={text.title} onRefresh={onRefresh} trigger={<QuotaRing remaining={remaining} />}>
+  const status = loading ? text.loading : text.unavailable;
+  const label = `${text.title}: ${remaining === null ? status : `${percent.format(remaining)}% ${text.remaining}`}`;
+  const showResets = provider.capabilities.resets && (loading || (data !== null && sourceKey !== null));
+  return <QuotaPopover surface={surface} label={label} title={text.title} onRefresh={onRefresh}
+    trigger={<QuotaRing remaining={remaining} loading={loading} />}>
     <QuotaSettingsCard surface={surface}>{settingsButton => <>
       <div className="flex items-center gap-1">
         {settingsButton}
         <h3 className="mr-auto min-w-0 wrap-anywhere font-medium">{provider.label}{account?.plan ? ` · ${account.plan}` : ""}</h3>
-        {provider.capabilities.resets && <ResetCount key={account?.plan} location={location} quota={data} count={count} format={format} />}
+        {showResets &&
+          <ResetCount key={JSON.stringify([sourceKey, account?.plan])} {...snapshot} count={count} format={format} />}
       </div>
-      <QuotaWindows data={data} now={now} fresh={fresh} format={format} />
+      <QuotaWindows data={data} loading={loading} now={now} fresh={fresh} format={format} />
     </>}</QuotaSettingsCard>
   </QuotaPopover>;
 }

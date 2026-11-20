@@ -3,7 +3,7 @@ import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { QuotaAdapter, QuotaCollector } from "../lib/quota-adapter";
 import { quotaAdapters } from "../lib/quota-adapters";
-import plugin, { createQuotaPlugin } from "../server";
+import plugin, { createQuotaPlugin, type QuotaLocation } from "../server";
 
 const threadId = "thread-1";
 const environmentId = "environment-1";
@@ -72,6 +72,82 @@ afterEach(async () => {
   await host.harness.lifecycle.dispose();
 });
 
+async function sourceKey(location: QuotaLocation, pluginHost = host): Promise<string> {
+  const result = await pluginHost.harness.behavior.callRpc("resolveSource", location) as { sourceKey: string | null };
+  expect(result).toStrictEqual({ sourceKey: expect.any(String) });
+  if (!result.sourceKey) throw new Error("Expected a source key");
+  return result.sourceKey;
+}
+
+describe("quota source resolution", () => {
+  it("returns the same opaque Codex key for thread, environment and host aliases", async () => {
+    const key = await sourceKey({ threadId });
+
+    expect(await sourceKey({ environmentId, providerId: "codex" })).toBe(key);
+    expect(await sourceKey({ hostId })).toBe(key);
+    for (const raw of [threadId, environmentId, hostId, accountKey, resource.id]) expect(key).not.toContain(raw);
+    expect(getResource).not.toHaveBeenCalled();
+    expect(readHost).not.toHaveBeenCalled();
+  });
+
+  it("uses the cached usage read to find an account when the inventory is cold", async () => {
+    listResources.mockResolvedValueOnce({ resources: [{ ...resource, accountKey: null }] });
+    const coldKey = await sourceKey({ hostId });
+
+    expect(await sourceKey({ hostId })).toBe(coldKey);
+    expect(getResource).toHaveBeenCalledExactlyOnceWith({ resourceId: resource.id, refresh: false });
+    expect(readHost).not.toHaveBeenCalled();
+  });
+
+  it("returns no Codex source when the inventory and usage read cannot confirm an account", async () => {
+    listResources.mockResolvedValue({ resources: [{ ...resource, accountKey: null }] });
+    getResource.mockResolvedValue({ accountKey: null, observedAt, usage: { status: "ok", windows } });
+
+    await expect(host.harness.behavior.callRpc("resolveSource", { hostId })).resolves.toStrictEqual({ sourceKey: null });
+    expect(readHost).not.toHaveBeenCalled();
+  });
+
+  it("returns no source for an unsupported location, unmatched host or provider failure", async () => {
+    await expect(host.harness.behavior.callRpc("resolveSource", { hostId, providerId: "other" }))
+      .resolves.toStrictEqual({ sourceKey: null });
+    await expect(host.harness.behavior.callRpc("resolveSource", { hostId: "other-host" }))
+      .resolves.toStrictEqual({ sourceKey: null });
+    listResources.mockRejectedValueOnce(new Error(providerError));
+    await expect(host.harness.behavior.callRpc("resolveSource", { hostId })).resolves.toStrictEqual({ sourceKey: null });
+    expect(getResource).not.toHaveBeenCalled();
+  });
+
+  it("isolates keys by account, resource and host", async () => {
+    const secondHost = "other-host";
+    const original = await sourceKey({ hostId });
+    listResources.mockResolvedValueOnce({ resources: [{ ...resource, accountKey: "different-account" }] });
+    expect(await sourceKey({ hostId })).not.toBe(original);
+    listResources.mockResolvedValueOnce({ resources: [{ ...resource, id: "different-resource" }] });
+    expect(await sourceKey({ hostId })).not.toBe(original);
+    listResources.mockResolvedValueOnce({ resources: [{ ...resource, scope: { kind: "host", hostId: secondHost } }] });
+    expect(await sourceKey({ hostId: secondHost })).not.toBe(original);
+  });
+
+  it.each(["changed-account", null, 123])("rejects quota when the observation has account %j and inventory still matches", async (observedAccount) => {
+    const expectedSourceKey = await sourceKey({ threadId });
+    getResource.mockResolvedValue({ accountKey: observedAccount, observedAt, usage: { status: "ok", windows } });
+
+    await expect(host.harness.behavior.callRpc("quota", { threadId, expectedSourceKey, refresh: true }))
+      .resolves.toStrictEqual(unavailable);
+    expect(getResource).toHaveBeenCalledExactlyOnceWith({ resourceId: resource.id, refresh: true });
+    expect(readHost).not.toHaveBeenCalled();
+  });
+
+  it("returns only the legacy quota payload for a confirmed source", async () => {
+    const expectedSourceKey = await sourceKey({ hostId });
+    const result = await host.harness.behavior.callRpc("quota", { threadId, expectedSourceKey });
+
+    expect(result).toStrictEqual(await host.harness.behavior.callRpc("quota", { threadId }));
+    expect(result).toMatchObject({ error: null });
+    expect(Object.keys(result as object).sort()).toEqual(["account", "error"]);
+  });
+});
+
 describe("quota RPC", () => {
   it("lists Codex and its resets capability without reading provider data", async () => {
     await expect(host.harness.behavior.callRpc("listProviders", {})).resolves.toStrictEqual({ providers: [codex] });
@@ -123,9 +199,9 @@ describe("quota RPC", () => {
     expect(getResource).toHaveBeenCalledExactlyOnceWith({ resourceId: resource.id, refresh: false });
   });
 
-  it("returns measured quota when the provider has no account identity or plan label", async () => {
+  it.each([null, 123])("returns legacy quota with unconfirmed identity %j and no plan label", async (accountKey) => {
     getResource.mockResolvedValue({
-      accountKey: null,
+      accountKey,
       observedAt,
       usage: { status: "ok", accountEmail: null, planLabel: null, windows },
     });
@@ -225,6 +301,30 @@ describe("quota RPC", () => {
 });
 
 describe("available manual resets", () => {
+  it("rejects a stale source before invoking the Codex host worker", async () => {
+    const expectedSourceKey = await sourceKey({ hostId });
+    listResources.mockResolvedValue({ resources: [{ ...resource, accountKey: "changed-account" }] });
+
+    await expect(host.harness.behavior.callRpc("availableResets", { environmentId, includeExpiries: true, expectedSourceKey }))
+      .resolves.toStrictEqual({ count: null });
+    expect(readHost).not.toHaveBeenCalled();
+    expect(getResource).not.toHaveBeenCalled();
+  });
+
+  it("reads confirmed resets once on the selected host using the verified account", async () => {
+    const expectedSourceKey = await sourceKey({ hostId });
+    const summary = { count: 1, expiries: [1_800_000_000] };
+    readHost.mockResolvedValue(summary);
+
+    await expect(host.harness.behavior.callRpc("availableResets", { threadId, includeExpiries: true, expectedSourceKey }))
+      .resolves.toStrictEqual(summary);
+    expect(readHost).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      method: "availableResets", hostId, input: { accountKey, includeExpiries: true },
+    }));
+    expect(listResources).toHaveBeenCalledTimes(2);
+    expect(getResource).not.toHaveBeenCalled();
+  });
+
   it.each([0, 3])("returns only the available count (%i) from the thread host", async count => {
     readHost.mockResolvedValue({ count });
     await expect(host.harness.behavior.callRpc("availableResets", { threadId })).resolves.toEqual({ count });
@@ -288,5 +388,61 @@ describe("quota collector registration", () => {
 
   it("rejects a second collector with an already registered provider ID", () => {
     expect(() => createQuotaPlugin([...quotaAdapters, ...quotaAdapters])(host.bb)).toThrow("Duplicate quota provider: codex");
+  });
+
+  it("gives old collectors separate fallback keys for separate providers, environments and threads", async () => {
+    const readQuota = vi.fn<QuotaCollector["readQuota"]>().mockResolvedValue({
+      account: { plan: "Example", observedAt, windows: [] }, error: null,
+    });
+    const adapter: QuotaAdapter = { id: "example", label: "Example", create: () => ({ readQuota }) };
+    const multiple = createFakePluginHost({
+      pluginId: "codex-quota",
+      sdk: {
+        environments: { get: getEnvironment },
+        threads: { get: vi.fn().mockResolvedValue({ providerId: adapter.id, environmentId }) },
+      },
+    });
+
+    try {
+      createQuotaPlugin([adapter, { ...adapter, id: "another" }])(multiple.bb);
+      const location = { threadId, providerId: adapter.id };
+      const expectedSourceKey = await sourceKey(location, multiple);
+      const otherThreadKey = await sourceKey({ ...location, threadId: "concurrent-thread" }, multiple);
+      const envKey = await sourceKey({ environmentId, providerId: adapter.id }, multiple);
+      const otherEnvironmentKey = await sourceKey({ environmentId: "other-environment", providerId: adapter.id }, multiple);
+      const hostKey = await sourceKey({ hostId, providerId: adapter.id }, multiple);
+      const otherProviderKey = await sourceKey({ hostId, providerId: "another" }, multiple);
+      expect(new Set([expectedSourceKey, envKey, otherEnvironmentKey, hostKey, otherProviderKey, otherThreadKey]).size).toBe(6);
+      expect(readQuota).not.toHaveBeenCalled();
+      await expect(multiple.harness.behavior.callRpc("quota", { ...location, expectedSourceKey })).resolves.toMatchObject({ error: null });
+      await expect(multiple.harness.behavior.callRpc("quota", { ...location, expectedSourceKey: otherThreadKey }))
+        .resolves.toStrictEqual(unavailable);
+    } finally {
+      await multiple.harness.lifecycle.dispose();
+    }
+  });
+
+  it("rejects an observed reset source that changed after a custom collector was called", async () => {
+    const selected = { resourceId: resource.id, accountKey };
+    const readAvailableResets = vi.fn<NonNullable<QuotaCollector["readAvailableResets"]>>().mockResolvedValue({
+      count: 2, source: { ...selected, accountKey: "changed-account" },
+    });
+    const adapter: QuotaAdapter = { id: "example", label: "Example", create: () => ({
+      async resolveSource() { return selected; },
+      async readQuota() { return { account: null, error: "unavailable" }; },
+      readAvailableResets,
+    }) };
+    const multiple = createFakePluginHost({ pluginId: "codex-quota" });
+
+    try {
+      createQuotaPlugin([adapter])(multiple.bb);
+      const location = { hostId, providerId: adapter.id };
+      const expectedSourceKey = await sourceKey(location, multiple);
+      await expect(multiple.harness.behavior.callRpc("availableResets", { ...location, expectedSourceKey }))
+        .resolves.toStrictEqual({ count: null });
+      expect(readAvailableResets).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ source: selected }));
+    } finally {
+      await multiple.harness.lifecycle.dispose();
+    }
   });
 });

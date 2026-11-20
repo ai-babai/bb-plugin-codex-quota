@@ -101,6 +101,7 @@
     "lib/quota-settings.tsx",
     "lib/sidebar-quota.tsx",
     "lib/usage-footer.ts",
+    "lib/quota-store.ts",
     "lib/use-quota.ts",
     "assets/icon.svg",
     "dist/app.css",

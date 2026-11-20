@@ -1,6 +1,9 @@
+import { createHmac, randomBytes } from "node:crypto";
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { quotaReadingSchema, type QuotaAdapter, type QuotaCollector, type QuotaReading, type QuotaScope } from "./lib/quota-adapter";
+import {
+  quotaReadingSchema, type QuotaAdapter, type QuotaCollector, type QuotaReading, type QuotaScope, type QuotaSourceIdentity,
+} from "./lib/quota-adapter";
 import { quotaAdapters } from "./lib/quota-adapters";
 import { resetContract } from "./lib/reset-contract";
 
@@ -19,14 +22,22 @@ const locationSchema = z.union([
   z.object({ hostId: z.string().min(1) }),
 ]).and(z.object({ providerId: z.string().min(1).optional() }));
 export type QuotaLocation = z.infer<typeof locationSchema>;
+const expectedSourceKeySchema = z.string().min(1).optional();
 export const rpcContract = defineRpcContract({
   listProviders: { input: z.object({}).strict(), output: z.object({ providers: z.array(quotaProviderSchema) }) },
-  availableResets: { input: locationSchema.and(z.object({ includeExpiries: z.boolean().optional() })), output: resetContract.availableResets.output },
-  quota: { input: locationSchema.and(z.object({ refresh: z.boolean().default(false) })), output: quotaReadingSchema },
+  resolveSource: { input: locationSchema, output: z.object({ sourceKey: z.string().nullable() }) },
+  availableResets: {
+    input: locationSchema.and(z.object({ includeExpiries: z.boolean().optional(), expectedSourceKey: expectedSourceKeySchema })),
+    output: resetContract.availableResets.output,
+  },
+  quota: {
+    input: locationSchema.and(z.object({ refresh: z.boolean().default(false), expectedSourceKey: expectedSourceKeySchema })),
+    output: quotaReadingSchema,
+  },
 });
 
 type RegisteredCollector = { provider: QuotaProvider; collector: QuotaCollector };
-type QuotaTarget = { collector: QuotaCollector; scope: QuotaScope };
+type QuotaTarget = RegisteredCollector & { scope: QuotaScope };
 
 function registerCollectors(bb: BbPluginApi, adapters: readonly QuotaAdapter[]) {
   const collectors = new Map<string, RegisteredCollector>();
@@ -45,7 +56,7 @@ async function resolveEnvironmentTarget(
 ): Promise<QuotaTarget | null> {
   if (!registered) return null;
   const { hostId } = await bb.sdk.environments.get({ environmentId: scope.environmentId });
-  return hostId ? { collector: registered.collector, scope: { ...scope, hostId } } : null;
+  return hostId ? { ...registered, scope: { ...scope, hostId } } : null;
 }
 
 async function resolveTarget(
@@ -61,7 +72,28 @@ async function resolveTarget(
 
   const registered = collectors.get(location.providerId ?? "codex");
   if ("environmentId" in location) return resolveEnvironmentTarget(bb, registered, { environmentId: location.environmentId });
-  return registered ? { collector: registered.collector, scope: { hostId: location.hostId } } : null;
+  return registered ? { ...registered, scope: { hostId: location.hostId } } : null;
+}
+
+function sourceKeyFor(secret: Buffer, target: QuotaTarget, source?: QuotaSourceIdentity | null) {
+  const { hostId, environmentId, threadId } = target.scope;
+  let identity;
+  if (target.collector.resolveSource) {
+    if (!source) return null;
+    identity = ["resource", source.resourceId, source.accountKey];
+  } else {
+    identity = ["scope", environmentId ?? null, threadId ?? null];
+  }
+  const keyMaterial = JSON.stringify([target.provider.id, hostId, ...identity]);
+  return createHmac("sha256", secret).update(keyMaterial).digest("base64url");
+}
+
+function matchesSource(secret: Buffer, target: QuotaTarget, expected?: string, source?: QuotaSourceIdentity | null) {
+  return expected === undefined || sourceKeyFor(secret, target, source) === expected;
+}
+
+async function lookupSource(target: QuotaTarget, signal: AbortSignal) {
+  return target.collector.resolveSource?.({ ...target.scope, signal });
 }
 
 export function createQuotaPlugin(adapters: readonly QuotaAdapter[]) {
@@ -70,6 +102,7 @@ export function createQuotaPlugin(adapters: readonly QuotaAdapter[]) {
 
 function registerPlugin(bb: BbPluginApi, adapters: readonly QuotaAdapter[]) {
   const collectors = registerCollectors(bb, adapters);
+  const sourceSecret = randomBytes(32);
   bb.settings.define({
     showInChat: { type: "boolean", label: "Show in chat", default: true },
     showInSidebar: { type: "boolean", label: "Show in left sidebar", default: true },
@@ -90,26 +123,40 @@ function registerPlugin(bb: BbPluginApi, adapters: readonly QuotaAdapter[]) {
   });
   bb.rpc.register(rpcContract, {
     listProviders: () => ({ providers: [...collectors.values()].map(({ provider }) => provider) }),
-    availableResets: async ({ includeExpiries = false, ...location }, context) => {
+    resolveSource: async (location, { experimental_signal: signal }) => {
+      try {
+        const target = await resolveTarget(bb, collectors, location);
+        if (!target) return { sourceKey: null };
+        const source = await lookupSource(target, signal);
+        return { sourceKey: sourceKeyFor(sourceSecret, target, source) };
+      } catch {
+        return { sourceKey: null };
+      }
+    },
+    availableResets: async ({ includeExpiries = false, expectedSourceKey, ...location }, { experimental_signal: signal }) => {
       try {
         const target = await resolveTarget(bb, collectors, location);
         if (!target?.collector.readAvailableResets) return { count: null };
-        const result = await target.collector.readAvailableResets({
-          ...target.scope, includeExpiries, signal: context.experimental_signal,
+        const source = expectedSourceKey === undefined ? undefined : await lookupSource(target, signal);
+        if (!matchesSource(sourceSecret, target, expectedSourceKey, source)) return { count: null };
+        const { source: observedSource, ...result } = await target.collector.readAvailableResets({
+          ...target.scope, includeExpiries, signal, ...(source ? { source } : {}),
         });
+        if (!matchesSource(sourceSecret, target, expectedSourceKey, observedSource)) return { count: null };
         const summary = resetContract.availableResets.output.parse(result);
         return includeExpiries ? summary : { count: summary.count };
       } catch {
         return { count: null };
       }
     },
-    quota: async ({ refresh, ...location }, context): Promise<Quota> => {
+    quota: async ({ refresh, expectedSourceKey, ...location }, { experimental_signal: signal }): Promise<Quota> => {
       try {
         const target = await resolveTarget(bb, collectors, location);
         if (!target) return { account: null, error: "unavailable" };
-        const result = await target.collector.readQuota({
-          ...target.scope, refresh, signal: context.experimental_signal,
-        });
+        const result = await target.collector.readQuota({ ...target.scope, refresh, signal });
+        if (!matchesSource(sourceSecret, target, expectedSourceKey, result.source)) {
+          return { account: null, error: "unavailable" };
+        }
         return quotaReadingSchema.parse(result);
       } catch { return { account: null, error: "refresh_failed" }; }
     },

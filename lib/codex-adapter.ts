@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { quotaWindowSchema, type QuotaAdapter } from "./quota-adapter";
+import { quotaWindowSchema, type QuotaAdapter, type QuotaSourceIdentity } from "./quota-adapter";
 import { resetContract } from "./reset-contract";
 
 const providerId = "codex";
@@ -11,13 +11,17 @@ const resourcesSchema = z.object({ resources: z.array(z.object({
   scope: z.object({ kind: z.string(), hostId: z.string().optional() }),
 })) });
 
-const providerUsageSchema = z.object({ observedAt: z.number().nullable(), usage: z.object({
+const providerUsageSchema = z.object({ accountKey: z.unknown().optional(), observedAt: z.number().nullable(), usage: z.object({
   status: z.string(), planLabel: z.string().nullable().optional(),
   windows: z.array(z.object({
     id: z.string(), kind: quotaWindowSchema.shape.kind, label: z.string(),
     usedPercent: z.number().nonnegative(), resetsAt: z.string().nullable(),
   })).optional(),
 }) });
+
+function sourceIdentity(resourceId: string, accountKey: unknown): QuotaSourceIdentity | null {
+  return typeof accountKey === "string" && accountKey.length ? { resourceId, accountKey } : null;
+}
 
 export const codexAdapter: QuotaAdapter = {
   id: providerId,
@@ -32,18 +36,30 @@ export const codexAdapter: QuotaAdapter = {
       return inventory.resources.find(r => r.providerId === providerId && r.scope.kind === "host" && r.scope.hostId === hostId);
     }
 
+    function getUsage(resourceId: string, refresh: boolean, signal: AbortSignal) {
+      return bb.sdk.plugins.callRpc({
+        pluginId, method: "provider-usage.v1.getResource", input: { resourceId, refresh },
+        outputSchema: providerUsageSchema, signal,
+      });
+    }
+
     return {
+      async resolveSource({ hostId, signal }) {
+        const resource = await findResource(hostId, signal);
+        if (!resource) return null;
+        const known = sourceIdentity(resource.id, resource.accountKey);
+        if (known) return known;
+        const { accountKey } = await getUsage(resource.id, false, signal);
+        return sourceIdentity(resource.id, accountKey);
+      },
       async readQuota({ hostId, refresh, signal }) {
         const resource = await findResource(hostId, signal);
         if (!resource) return { account: null, error: "unavailable" };
-        const { observedAt, usage } = await bb.sdk.plugins.callRpc({
-          pluginId, method: "provider-usage.v1.getResource", input: { resourceId: resource.id, refresh },
-          outputSchema: providerUsageSchema, signal,
-        });
+        const { accountKey, observedAt, usage } = await getUsage(resource.id, refresh, signal);
         if (usage.status !== "ok" || observedAt === null || !usage.windows?.length) {
           return { account: null, error: "unavailable" };
         }
-        return { error: null, account: {
+        return { source: sourceIdentity(resource.id, accountKey) ?? undefined, error: null, account: {
           plan: usage.planLabel || label, observedAt,
           windows: usage.windows.map((window) => ({
             id: window.id, label: window.label, kind: window.kind,
@@ -51,10 +67,12 @@ export const codexAdapter: QuotaAdapter = {
           })),
         } };
       },
-      async readAvailableResets({ hostId, includeExpiries, signal }) {
-        const resource = await findResource(hostId, signal);
-        if (!resource?.accountKey) return { count: null };
-        return host.call("availableResets", { accountKey: resource.accountKey, includeExpiries }, { hostId, signal });
+      async readAvailableResets({ hostId, includeExpiries, signal, source }) {
+        const accountKey = source?.accountKey ?? (await findResource(hostId, signal))?.accountKey;
+        if (!accountKey) return { count: null };
+        // The host compares this account with the account in the same app-server reply as the count.
+        const result = await host.call("availableResets", { accountKey, includeExpiries }, { hostId, signal });
+        return { ...result, source };
       },
     };
   },

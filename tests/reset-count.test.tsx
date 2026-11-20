@@ -11,12 +11,15 @@ import type { Quota } from "../server";
 type ResetSummary = { count: number | null; expiries?: (number | null)[] };
 
 const rpc = vi.hoisted(() => ({
-  call: vi.fn<(method: "availableResets", input: { threadId: string; includeExpiries?: boolean }) => Promise<ResetSummary>>(),
+  call: vi.fn<(method: "availableResets", input: {
+    threadId: string; expectedSourceKey: string; includeExpiries?: boolean;
+  }) => Promise<ResetSummary>>(),
 }));
 
 vi.mock("@get-bb/plugin-sdk/app", () => ({ useRpc: () => rpc, experimental_Icon: () => null }));
 
 const threadId = "thread-a";
+const sourceKey = "fixture-source-a";
 const format = getQuotaFormat("en");
 const oldExpiry = Date.UTC(2030, 5, 10, 12) / 1000;
 const newExpiry = Date.UTC(2030, 6, 20, 12) / 1000;
@@ -34,12 +37,13 @@ function quotaSnapshot(observedAt: number, plan = "Pro"): Quota {
   };
 }
 
-function QuotaCard({ quota, thread = threadId, fresh = true, open = true }: {
-  quota: Quota; thread?: string; fresh?: boolean; open?: boolean;
+function QuotaCard({ quota, thread = threadId, source = sourceKey, fresh = true, open = true }: {
+  quota: Quota | null; thread?: string; source?: string | null; fresh?: boolean; open?: boolean;
 }) {
   const location = useMemo(() => ({ threadId: thread }), [thread]);
-  const count = useAvailableResetCount(location, quota, fresh);
-  return open ? <ResetCount location={location} quota={quota} format={format} count={count} /> : null;
+  const snapshot = { location, quota, sourceKey: source };
+  const count = useAvailableResetCount(snapshot, fresh);
+  return open ? <ResetCount {...snapshot} format={format} count={count} /> : null;
 }
 
 function serveSummary(response: Promise<ResetSummary>) {
@@ -80,7 +84,7 @@ it.each([
   serveSummary(next.promise);
   await act(async () => rerender(<QuotaCard quota={quotaSnapshot(observedAt + 1_000)} />));
 
-  expect(rpc.call).toHaveBeenCalledWith("availableResets", { threadId, includeExpiries: false });
+  expect(rpc.call).toHaveBeenCalledWith("availableResets", { threadId, expectedSourceKey: sourceKey, includeExpiries: false });
   expect(screen.queryByText("2")).not.toBeNull();
   expect(screen.getByRole("dialog", expiryPanel)).toBe(expiries);
   expect(expiries.textContent).toContain(previousDate);
@@ -103,13 +107,15 @@ it.each([
   }
 });
 
-it("starts the read before the first card open and shows a placeholder while waiting", async () => {
+it("waits for source confirmation, then starts the count read before the card opens", async () => {
   const next = deferSummary();
   serveSummary(next.promise);
   const quota = quotaSnapshot(Date.now());
-  const { rerender } = render(<QuotaCard quota={quota} open={false} />);
+  const { rerender } = render(<QuotaCard quota={null} source={null} open={false} />);
+  expect(rpc.call).not.toHaveBeenCalled();
+  rerender(<QuotaCard quota={quota} open={false} />);
 
-  expect(rpc.call).toHaveBeenCalledWith("availableResets", { threadId, includeExpiries: false });
+  expect(rpc.call).toHaveBeenCalledWith("availableResets", { threadId, expectedSourceKey: sourceKey, includeExpiries: false });
   rerender(<QuotaCard quota={quota} />);
   expect(screen.queryByText(/^[—–-]$/)).not.toBeNull();
 
@@ -119,20 +125,52 @@ it("starts the read before the first card open and shows a placeholder while wai
   expect(screen.queryByText(/^[—–-]$/)).toBeNull();
 });
 
+it("shares the count and lazy expiry read across aliases while keeping each panel local", async () => {
+  const initial = deferSummary();
+  const expiries = deferSummary();
+  rpc.call.mockImplementation((_method, { includeExpiries }) => includeExpiries ? expiries.promise : initial.promise);
+  const quota = quotaSnapshot(Date.now());
+  render(<>
+    <section aria-label="Composer quota"><QuotaCard quota={quota} /></section>
+    <section aria-label="Sidebar quota"><QuotaCard quota={quota} thread="thread-b" /></section>
+  </>);
+  expect(rpc.call).toHaveBeenCalledExactlyOnceWith("availableResets", { threadId, expectedSourceKey: sourceKey, includeExpiries: false });
+  await act(async () => initial.resolve({ count: 2 }));
+  const composer = within(screen.getByRole("region", { name: "Composer quota" }));
+  const sidebar = within(screen.getByRole("region", { name: "Sidebar quota" }));
+  const composerBadge = composer.getByRole("button", resetButton(2));
+  const sidebarBadge = sidebar.getByRole("button", resetButton(2));
+
+  fireEvent.click(composerBadge);
+  expect(composer.getByRole("dialog", expiryPanel)).toBeTruthy();
+  expect(sidebar.queryByRole("dialog", expiryPanel)).toBeNull();
+  fireEvent.click(composerBadge);
+  fireEvent.click(sidebarBadge);
+  await act(async () => expiries.resolve({ count: 2, expiries: [oldExpiry, null] }));
+  expect(composer.queryByRole("dialog", expiryPanel)).toBeNull();
+  expect(within(sidebar.getByRole("dialog", expiryPanel)).getByText(format.text.noExpiry)).toBeTruthy();
+  expect(rpc.call.mock.calls).toEqual([
+    ["availableResets", { threadId, expectedSourceKey: sourceKey, includeExpiries: false }],
+    ["availableResets", { threadId, expectedSourceKey: sourceKey, includeExpiries: true }],
+  ]);
+});
+
 it.each([
-  { change: "the plan", nextThread: threadId, nextPlan: "Plus" },
-  { change: "the thread", nextThread: "thread-b", nextPlan: "Pro" },
-])("does not carry a known count across a change of $change", async ({ nextThread, nextPlan }) => {
+  { change: "the plan", nextSource: sourceKey, nextPlan: "Plus" },
+  { change: "the source", nextSource: "fixture-source-b", nextPlan: null },
+])("does not carry a known count across a change of $change", async ({ nextSource, nextPlan }) => {
   serveSummary(Promise.resolve({ count: 2 }));
   const observedAt = Date.now();
-  const { rerender } = render(<QuotaCard quota={quotaSnapshot(observedAt)} />);
+  const quota = quotaSnapshot(observedAt);
+  const { rerender } = render(<QuotaCard quota={quota} />);
   await screen.findByText("2");
 
   const next = deferSummary();
   rpc.call.mockClear();
   serveSummary(next.promise);
-  rerender(<QuotaCard quota={quotaSnapshot(observedAt + 1_000, nextPlan)} thread={nextThread} />);
-  expect(rpc.call).toHaveBeenCalledExactlyOnceWith("availableResets", { threadId: nextThread, includeExpiries: false });
+  const nextQuota = nextPlan ? quotaSnapshot(observedAt + 1_000, nextPlan) : quota;
+  rerender(<QuotaCard quota={nextQuota} source={nextSource} />);
+  expect(rpc.call).toHaveBeenCalledExactlyOnceWith("availableResets", { threadId, expectedSourceKey: nextSource, includeExpiries: false });
   expect(screen.queryByText("2")).toBeNull();
   expect(screen.queryByText(/^[—–-]$/)).not.toBeNull();
 
@@ -156,7 +194,7 @@ it("groups expiry dates by minute and distinguishes unlimited from missing expir
   serveSummary(Promise.resolve({ count: 7, expiries: [null, newExpiry, oldExpiry + 20, null, oldExpiry] }));
   render(<QuotaCard quota={quotaSnapshot(Date.now())} />);
   const badge = await screen.findByRole("button", resetButton(7));
-  expect(rpc.call).toHaveBeenCalledExactlyOnceWith("availableResets", { threadId, includeExpiries: false });
+  expect(rpc.call).toHaveBeenCalledExactlyOnceWith("availableResets", { threadId, expectedSourceKey: sourceKey, includeExpiries: false });
 
   act(() => badge.focus());
   const panel = await screen.findByRole("dialog", expiryPanel);
@@ -222,8 +260,8 @@ it("toggles on touch, keeps the quota card open on an inside dismissal, and only
   expect(screen.queryByRole("dialog", expiryPanel)).toBeNull();
   expect(screen.queryByRole("dialog", { name: "Quota card" })).toBeNull();
   expect(rpc.call.mock.calls).toEqual([
-    ["availableResets", { threadId, includeExpiries: false }],
-    ["availableResets", { threadId, includeExpiries: true }],
+    ["availableResets", { threadId, expectedSourceKey: sourceKey, includeExpiries: false }],
+    ["availableResets", { threadId, expectedSourceKey: sourceKey, includeExpiries: true }],
   ]);
 });
 
@@ -288,7 +326,7 @@ it("waits for expiry data on hover and gives the pointer time to cross the gap b
   fireEvent.pointerOut(header, { ...mouse, relatedTarget: badge });
   fireEvent.pointerOver(badge, { ...mouse, relatedTarget: header });
   await advance(150);
-  expect(rpc.call).toHaveBeenCalledWith("availableResets", { threadId, includeExpiries: true });
+  expect(rpc.call).toHaveBeenCalledWith("availableResets", { threadId, expectedSourceKey: sourceKey, includeExpiries: true });
   expect(screen.queryByRole("dialog", expiryPanel)).toBeNull();
 
   await act(async () => next.resolve({ count: 2, expiries: [oldExpiry, null] }));

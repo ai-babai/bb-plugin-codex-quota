@@ -14,8 +14,9 @@ The GitHub READMEs begin with their visible heading because GitHub displays YAML
 
 ## Runtime
 
-- [app.tsx](app.tsx) — thread-scoped quota indicator and window display.
-- [server.ts](server.ts) — host-scoped Codex usage RPC adapter.
+- [app.tsx](app.tsx) and [sidebar-quota.tsx](lib/sidebar-quota.tsx) select the chat or sidebar context and render the same quota card.
+- [use-quota.ts](lib/use-quota.ts) connects each ring to the [quota store](lib/quota-store.ts). Rings subscribed to the same source share quota readings, refreshes and the polling timer.
+- [server.ts](server.ts) resolves a context to its quota source and routes requests to a [registered collector](lib/quota-adapters.ts). The [Codex collector](lib/codex-adapter.ts) reads usage from BB’s Codex provider.
 - [host.ts](host.ts) — read the count and expiry dates of available manual resets from Codex CLI on the thread’s machine.
 - [lib/usage-footer.ts](lib/usage-footer.ts) — footer placement and cleanup.
 - [lib/quota-popover.tsx](lib/quota-popover.tsx) — hover, click and keyboard behavior.

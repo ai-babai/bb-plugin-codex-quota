@@ -24,10 +24,17 @@ export type QuotaReading = z.infer<typeof quotaReadingSchema>;
 export type ResetResult = z.infer<typeof resetContract.availableResets.output>;
 
 export type QuotaScope = { hostId: string; environmentId?: string; threadId?: string };
+export type QuotaSourceIdentity = { resourceId: string; accountKey: string };
+type CollectorScope = QuotaScope & { signal: AbortSignal };
+type CollectorReading<T> = T & { source?: QuotaSourceIdentity };
 
 export interface QuotaCollector {
-  readQuota(input: QuotaScope & { refresh: boolean; signal: AbortSignal }): Promise<QuotaReading>;
-  readAvailableResets?(input: QuotaScope & { includeExpiries: boolean; signal: AbortSignal }): Promise<ResetResult>;
+  resolveSource?(input: CollectorScope): Promise<QuotaSourceIdentity | null>;
+  readQuota(input: CollectorScope & { refresh: boolean }): Promise<CollectorReading<QuotaReading>>;
+  readAvailableResets?(input: CollectorScope & {
+    includeExpiries: boolean;
+    source?: QuotaSourceIdentity;
+  }): Promise<CollectorReading<ResetResult>>;
 }
 
 export interface QuotaAdapter {

@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import type { ComposerSelection } from "@get-bb/plugin-sdk/app";
 import type { ComponentType } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import type { Quota, QuotaWindow } from "../server";
+import type { Quota, QuotaLocation, QuotaWindow } from "../server";
 import { mountUsageFooter } from "../lib/usage-footer";
 
 const { rpc, client, customize, register, settings, composer } = vi.hoisted(() => ({
@@ -55,15 +55,35 @@ function windowData(kind: QuotaWindow["kind"], remaining: number, untilHours: nu
 }
 
 const providers = [{ id: "codex", label: "Codex", capabilities: { resets: true } }];
+let fixtureRun = 0;
 
-function respondWith(data: Quota) {
-  rpc.call.mockImplementation(async (method: string) => {
+function fixtureSource(location: QuotaLocation) {
+  if ("threadId" in location) return `fixture:${fixtureRun}:thread:${location.threadId}`;
+  if ("environmentId" in location) return `fixture:${fixtureRun}:environment:${location.environmentId}`;
+  return `fixture:${fixtureRun}:host:${location.hostId}`;
+}
+
+function respondWithRead(read: () => Quota | Promise<Quota>) {
+  rpc.call.mockImplementation(async (method: string, input: QuotaLocation & { expectedSourceKey?: string }) => {
     if (method === "listProviders") return { providers };
-    return method === "quota" ? data : { count: 2 };
+    const sourceKey = fixtureSource(input);
+    if (method === "resolveSource") return { sourceKey };
+    expect(input.expectedSourceKey).toBe(sourceKey);
+    if (method === "quota") return read();
+    if (method === "availableResets") return { count: 2 };
+    throw new Error(`Unexpected RPC: ${method}`);
   });
 }
 
+function respondWith(data: Quota) {
+  respondWithRead(() => data);
+}
+
+const threadLocation = { threadId: "example", providerId: "codex" };
+const threadRefresh = () => ({ ...threadLocation, expectedSourceKey: fixtureSource(threadLocation), refresh: true });
+
 beforeEach(() => {
+  fixtureRun++;
   rpc.call.mockReset();
   client.current = { call: rpc.call };
   rpc.call.mockResolvedValue({ providers });
@@ -84,7 +104,11 @@ it("places the ring beside context, shows the tightest limit and each reported r
   expect(screen.getAllByRole("meter").map(meter => [meter.getAttribute("aria-label"), meter.getAttribute("aria-valuenow")]))
     .toEqual([["5 hours: left", "78"], ["Weekly: left", "46"], ["Daily: left", "90"], ["Project limit: left", "100"]]);
   expect(screen.getAllByText("Resets in")).toHaveLength(3);
-  expect(rpc.call).toHaveBeenCalledWith("quota", { threadId: "example", providerId: "codex", refresh: true });
+  expect(await screen.findByRole("button", { name: "Available resets: 2" })).toBeTruthy();
+  expect(rpc.call).toHaveBeenCalledWith("availableResets", {
+    ...threadLocation, expectedSourceKey: fixtureSource(threadLocation), includeExpiries: false,
+  });
+  expect(rpc.call).toHaveBeenCalledWith("quota", threadRefresh());
 });
 
 it("uses the saved language and refresh triggers and marks elapsed windows stale", async () => {
@@ -92,26 +116,52 @@ it("uses the saved language and refresh triggers and marks elapsed windows stale
   respondWith(quota([windowData("weekly", 10, -1), windowData("daily", 20, 3)]));
   showDisk();
   const ring = await screen.findByRole("button", { name: "Подписка Codex: Лимиты недоступны" });
+  expect(ring.querySelector("svg text")?.textContent).toBe("?");
   rpc.call.mockClear();
   fireEvent.pointerOver(ring, { pointerType: "mouse" });
   expect(await screen.findByText("Ожидаем обновления квоты")).toBeTruthy();
   expect(screen.getByText("10% осталось · устарело")).toBeTruthy();
-  expect(rpc.call).not.toHaveBeenCalledWith("quota", { threadId: "example", providerId: "codex", refresh: true });
+  expect(rpc.call).not.toHaveBeenCalledWith("quota", threadRefresh());
   fireEvent.click(ring);
-  expect(rpc.call).toHaveBeenCalledWith("quota", { threadId: "example", providerId: "codex", refresh: true });
+  await waitFor(() => expect(rpc.call).toHaveBeenCalledWith("quota", threadRefresh()));
 });
 
 it("distinguishes waiting for the first read from a failed read", async () => {
   settings.values.refreshOnHover = false;
   let finish!: (quota: Quota) => void;
-  rpc.call.mockImplementation((method: string) => method === "listProviders" ? Promise.resolve({ providers })
-    : new Promise(resolve => { finish = resolve; }));
+  const pending = new Promise<Quota>(resolve => { finish = resolve; });
+  respondWithRead(() => pending);
   showDisk();
-  const ring = await screen.findByRole("button", { name: "Codex subscription: Quota unavailable" });
+  const ring = await screen.findByRole("button", { name: "Codex subscription: Loading quota…" });
+  expect(ring.querySelector("svg text")).toBeNull();
+  expect(ring.querySelector("svg")?.childElementCount).toBeGreaterThan(1);
   fireEvent.pointerOver(ring, { pointerType: "mouse" });
   expect(screen.getByRole("status").textContent).toBe("Loading quota…");
+  await waitFor(() => expect(rpc.call).toHaveBeenCalledWith("quota", threadRefresh()));
   await act(async () => finish({ account: null, error: "refresh_failed" }));
+  const unavailableRing = await screen.findByRole("button", { name: "Codex subscription: Quota unavailable" }, { timeout: 3_000 });
+  expect(unavailableRing.querySelector("svg text")?.textContent).toBe("?");
   expect(screen.getByRole("status").textContent).toBe("Quota unavailable");
+});
+
+it("keeps the last measured ring and card visible during a refresh", async () => {
+  let finish!: (quota: Quota) => void;
+  const pending = new Promise<Quota>(resolve => { finish = resolve; });
+  const read = vi.fn<() => Promise<Quota>>()
+    .mockResolvedValueOnce(quota([windowData("weekly", 46, 52)]))
+    .mockReturnValueOnce(pending);
+  respondWithRead(read);
+  showDisk();
+  const ring = await screen.findByRole("button", { name: "Codex subscription: 46% left" });
+  fireEvent.click(ring);
+  await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+  expect(screen.getByRole("button", { name: "Codex subscription: 46% left" })).toBe(ring);
+  expect(screen.getByRole("meter", { name: "Weekly: left" }).getAttribute("aria-valuenow")).toBe("46");
+  expect(screen.queryByText("Loading quota…")).toBeNull();
+
+  await act(async () => finish(quota([windowData("weekly", 22, 52)])));
+  expect(screen.getByRole("button", { name: "Codex subscription: 22% left" })).toBe(ring);
+  expect(screen.getByRole("meter", { name: "Weekly: left" }).getAttribute("aria-valuenow")).toBe("22");
 });
 
 it("hides the composer ring and skips quota reads when chat placement is disabled", () => {
@@ -143,17 +193,17 @@ it("shows the selected machine’s limits before the first prompt and clears the
   const view = render(draft());
   const ring = await screen.findByRole("button", { name: /65% left/ });
   expect(screen.getByRole("button", { name: "Permission mode" }).nextElementSibling?.contains(ring)).toBe(true);
-  expect(rpc.call).toHaveBeenCalledWith("quota", { hostId: "host-a", providerId: "codex", refresh: true });
+  expect(rpc.call).toHaveBeenCalledWith("quota", { hostId: "host-a", providerId: "codex", expectedSourceKey: fixtureSource({ hostId: "host-a" }), refresh: true });
   composer.selection.environment = { type: "reuse", environmentId: "env-b" };
   respondWith(quota([windowData("weekly", 20, 52)]));
   view.rerender(draft());
   expect(screen.queryByRole("button", { name: /65% left/ })).toBeNull();
   await screen.findByRole("button", { name: /20% left/ });
-  expect(rpc.call).toHaveBeenCalledWith("quota", { environmentId: "env-b", providerId: "codex", refresh: true });
+  expect(rpc.call).toHaveBeenCalledWith("quota", { environmentId: "env-b", providerId: "codex", expectedSourceKey: fixtureSource({ environmentId: "env-b" }), refresh: true });
   composer.selection.environment = { type: "host", hostId: "host-c", workspace: { type: "personal" } };
   view.rerender(draft());
   await screen.findByRole("button", { name: /20% left/ });
-  expect(rpc.call).toHaveBeenCalledWith("quota", { hostId: "host-c", providerId: "codex", refresh: true });
+  expect(rpc.call).toHaveBeenCalledWith("quota", { hostId: "host-c", providerId: "codex", expectedSourceKey: fixtureSource({ hostId: "host-c" }), refresh: true });
   rpc.call.mockClear();
   composer.selection.environment = { type: "project-default" };
   view.rerender(draft());

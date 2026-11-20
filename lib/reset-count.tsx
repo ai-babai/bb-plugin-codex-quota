@@ -5,53 +5,58 @@ import type { Quota, QuotaLocation, rpcContract } from "../server";
 import type { getQuotaFormat } from "./format";
 
 type ResetSummary = { count: number | null; expiries?: (number | null)[] };
-type ResetProps = { location: QuotaLocation; quota: Quota | null; count: number | null | undefined; format: ReturnType<typeof getQuotaFormat> };
+export type ResetSnapshot = { location: QuotaLocation; sourceKey: string | null; quota: Quota | null };
+type ResetProps = ResetSnapshot & { count: number | null | undefined; format: ReturnType<typeof getQuotaFormat> };
 
-// Reuse each read while the quota snapshot is current, including across hovers.
+// The quota store shares the snapshot object across rings. Weak keys let old
+// snapshots and their reset reads be collected together.
 type ResetRead = { pending: Promise<ResetSummary>; value?: ResetSummary };
-const counts = new WeakMap<Quota, Map<string, ResetRead>>();
-const details = new WeakMap<Quota, Map<string, ResetRead>>();
+type ResetCache = WeakMap<Quota, Map<string, ResetRead>>;
+type LastReset = { sourceKey: string; plan?: string; value: ResetSummary };
+const counts: ResetCache = new WeakMap();
+const details: ResetCache = new WeakMap();
 
-function resetEntries(cache: WeakMap<Quota, Map<string, ResetRead>>, quota: Quota) {
+function resetEntries(cache: ResetCache, quota: Quota) {
   let entries = cache.get(quota);
   if (!entries) { entries = new Map(); cache.set(quota, entries); }
   return entries;
 }
 
-function cachedReset(cache: WeakMap<Quota, Map<string, ResetRead>>, quota: Quota, locationKey: string) {
-  return cache.get(quota)?.get(locationKey)?.value;
+function visibleReset(cache: ResetCache, quota: Quota | null, sourceKey: string | null, last?: LastReset) {
+  if (!quota || !sourceKey) return undefined;
+  return cache.get(quota)?.get(sourceKey)?.value
+    ?? (last?.sourceKey === sourceKey && last.plan === quota.account?.plan ? last.value : undefined);
 }
 
-function useResetSummary(location: QuotaLocation, quota: Quota | null, { includeExpiries, enabled }: {
+function useResetSummary({ location, quota, sourceKey }: ResetSnapshot, { includeExpiries, enabled }: {
   includeExpiries: boolean;
   enabled?: boolean;
 }) {
   const rpc = useRpc<typeof rpcContract>();
   const cache = includeExpiries ? details : counts;
-  const locationKey = JSON.stringify(location);
-  const plan = quota?.account?.plan;
-  const [last, setLast] = useState<{ location: QuotaLocation; plan?: string; value: ResetSummary }>();
+  const [last, setLast] = useState<LastReset>();
   useEffect(() => {
-    if (enabled === false || !quota) return;
+    if (enabled === false || !quota || !sourceKey) return;
     let active = true;
     const entries = resetEntries(cache, quota);
-    let read = entries.get(locationKey);
+    let read = entries.get(sourceKey);
     if (!read) {
-      const pending = rpc.call("availableResets", { ...location, includeExpiries }).catch(() => ({ count: null }));
+      const pending = rpc.call("availableResets", { ...location, expectedSourceKey: sourceKey, includeExpiries })
+        .catch(() => ({ count: null }));
       const entry: ResetRead = { pending };
       void pending.then(value => { entry.value = value; });
-      entries.set(locationKey, entry);
+      entries.set(sourceKey, entry);
       read = entry;
     }
-    void read.pending.then(value => { if (active) setLast({ location, plan, value }); });
+    void read.pending.then(value => { if (active) setLast({ sourceKey, plan: quota.account?.plan, value }); });
     return () => { active = false; };
-  }, [rpc, location, locationKey, quota, plan, includeExpiries, enabled, cache]);
-  if (!quota) return undefined;
-  return cachedReset(cache, quota, locationKey) ?? (last?.location === location && last.plan === plan ? last.value : undefined);
+  }, [rpc, location, sourceKey, quota, includeExpiries, enabled, cache]);
+  return visibleReset(cache, quota, sourceKey, last);
 }
 
-export function useAvailableResetCount(location: QuotaLocation, quota: Quota | null, fresh: boolean, enabled = true) {
-  const summary = useResetSummary(location, fresh ? quota : null, { includeExpiries: false, enabled });
+export function useAvailableResetCount(snapshot: ResetSnapshot, fresh: boolean, enabled = true) {
+  const { quota } = snapshot;
+  const summary = useResetSummary({ ...snapshot, quota: fresh ? quota : null }, { includeExpiries: false, enabled });
   if (!enabled) return null;
   if (quota && (!quota.account || !fresh)) return null;
   return summary?.count;
@@ -137,12 +142,12 @@ function keepFocus(event: Event) {
   event.preventDefault();
 }
 
-function ResetDetails({ location, quota, format, badge, label }: Omit<ResetProps, "count"> & {
+function ResetDetails({ location, quota, sourceKey, format, badge, label }: Omit<ResetProps, "count"> & {
   badge: ReactElement;
   label: string;
 }) {
   const interaction = useResetDetailsInteraction();
-  const summary = useResetSummary(location, quota, {
+  const summary = useResetSummary({ location, quota, sourceKey }, {
     includeExpiries: true,
     enabled: interaction.active,
   });
@@ -163,13 +168,13 @@ function ResetDetails({ location, quota, format, badge, label }: Omit<ResetProps
   </Popover.Root>;
 }
 
-export function ResetCount({ count, location, quota, format }: ResetProps) {
+export function ResetCount({ count, location, quota, sourceKey, format }: ResetProps) {
   if (count === null) return null;
   const badge = <span className="inline-flex h-4 min-w-10 shrink-0 items-center justify-center gap-1 rounded-full bg-muted px-1.5 text-muted-foreground tabular-nums group-focus-visible:ring-2 group-focus-visible:ring-ring">
     <Icon name="Zap" aria-hidden="true" className="size-3.5" />
     <span className="sr-only">{format.text.manualResets}: </span>{count ?? "–"}
   </span>;
   if (!count) return <span className={`${badgeContainer} pointer-events-none`}>{badge}</span>;
-  return <ResetDetails location={location} quota={quota} format={format} badge={badge}
+  return <ResetDetails location={location} quota={quota} sourceKey={sourceKey} format={format} badge={badge}
     label={`${format.text.manualResets}: ${count}`} />;
 }
