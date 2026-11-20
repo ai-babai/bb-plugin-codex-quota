@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useId, useLayoutEffect, useRef, useState, type FocusEvent, type FormEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { experimental_Icon as Icon, experimental_usePluginId, useSdk, useSettings } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 import { IntervalHelp } from "./interval-help";
@@ -105,6 +105,21 @@ function PlacementToggle({ label, name, checked, onChange }: {
   </label>;
 }
 
+/** Records whether the settings were last reached by pointer or by Tab, without touching focus. */
+function markInput(event: PointerEvent<HTMLFormElement> | KeyboardEvent<HTMLFormElement>) {
+  if ("pointerType" in event) event.currentTarget.dataset.input = "pointer";
+  else if (event.key === "Tab") event.currentTarget.dataset.input = "keyboard";
+}
+
+/** Focus that arrives without a press first, such as Shift+Tab from outside, counts as keyboard. */
+function markFocus(event: FocusEvent<HTMLFormElement>) {
+  event.currentTarget.dataset.input ??= "keyboard";
+}
+
+function clearInput(event: FocusEvent<HTMLFormElement>) {
+  if (!event.currentTarget.contains(event.relatedTarget)) delete event.currentTarget.dataset.input;
+}
+
 type SaveState = "idle" | "saving" | "saved" | "failed";
 
 function SaveButton({ status, dirty, text }: { status: SaveState; dirty: boolean; text: typeof copy.en }) {
@@ -180,7 +195,8 @@ function QuotaSettingsForm({ initial, language, surface, backButton }: {
     }
   }
 
-  return <form aria-label={text.settings} className="@container grid gap-1.5 text-xs leading-4" noValidate onSubmit={event => { void save(event); }} lang={locale}>
+  return <form aria-label={text.settings} className="group/settings @container grid gap-1.5 text-xs leading-4" noValidate onSubmit={event => { void save(event); }} lang={locale}
+    onPointerDownCapture={markInput} onKeyDownCapture={markInput} onFocus={markFocus} onBlur={clearInput}>
     <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
       {backButton}
       <SaveButton status={status} dirty={dirty} text={text} />
@@ -192,9 +208,8 @@ function QuotaSettingsForm({ initial, language, surface, backButton }: {
             <label htmlFor={`${id}-interval`}>{text.interval}</label>
             <IntervalHelp id={`${id}-interval-help`} label={text.help} text={text.off} />
           </div>
-          {/* A press on the padding or unit focuses only on release, through the label. Showing the focus
-              border while pressed keeps it steady from press to focus, with no grey-to-ring flash. */}
-          <label className="ml-auto inline-flex h-7 cursor-text items-baseline gap-1 self-center rounded border border-transparent bg-muted px-2 leading-[26px] [@media(hover:hover)]:[&:hover:not(:focus-within,:active)]:border-border active:border-ring focus-within:border-ring has-[[aria-invalid=true]]:border-destructive!">
+          {/* Mouse and touch keep the field neutral; the caret shows focus. Tab shows the ring. */}
+          <label className="ml-auto inline-flex h-7 cursor-text items-baseline gap-1 self-center rounded border border-transparent bg-muted px-2 leading-[26px] group-data-[input=keyboard]/settings:focus-within:border-ring has-[[aria-invalid=true]]:border-destructive!">
             <input id={`${id}-interval`} type="number" inputMode="numeric" min={0} max={maxIntervalSeconds} step={1} required
               value={interval} aria-label={text.intervalLabel} aria-invalid={invalid || undefined}
               aria-describedby={invalid ? `${id}-interval-error` : `${id}-interval-help`}
