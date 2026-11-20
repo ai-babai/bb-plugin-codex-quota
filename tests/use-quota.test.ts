@@ -102,6 +102,22 @@ it("expires retained readings after five minutes and after quota window reset", 
   expect(reads()).toHaveLength(3);
 });
 
+it("bounds inactive source retention and re-reads an evicted source", async () => {
+  const firstKey = sourceKey;
+  for (let index = 0; index < 33; index++) {
+    sourceKey = `${firstKey}-${index}`;
+    const view = renderHook(() => useQuota({ hostId: `machine-${index}`, providerId: "third-party" }, 0));
+    await settle(); view.unmount();
+  }
+  const count = reads().length;
+  sourceKey = `${firstKey}-0`;
+  response = quota(99);
+  const returned = renderHook(() => useQuota({ hostId: "machine-0", providerId: "third-party" }, 0));
+  await settle();
+  expect(reads()).toHaveLength(count + 1);
+  expect(returned.result.current.data).toBe(response);
+});
+
 it("uses one clock and the shortest enabled poll, updates all surfaces and stops on unmount", async () => {
   vi.useFakeTimers();
   const first = renderHook(({ seconds }) => useQuota(codex, seconds), { initialProps: { seconds: 120 } });
@@ -252,6 +268,22 @@ it("bounds startup retries at zero polling and retries failed startup on remount
   await settle();
   expect(next.result.current.data).toBe(response);
   expect(reads()).toHaveLength(4);
+});
+
+it("cancels a recovery wait and further RPCs when the switched source unmounts", async () => {
+  vi.useFakeTimers();
+  const view = renderHook(() => useQuota(codex, 0));
+  await settle();
+  sourceKey += "-switched";
+  rpc.call.mockImplementation(async method => method === "resolveSource" ? { sourceKey } : { account: null, error: "unavailable" });
+  act(() => { void view.result.current.load(true); });
+  await settle();
+  view.unmount();
+  await settle();
+  const calls = rpc.call.mock.calls.length;
+  expect(vi.getTimerCount()).toBe(0);
+  await advance(5000);
+  expect(rpc.call).toHaveBeenCalledTimes(calls);
 });
 
 it("polls unresolved active scopes by their interval, without polling when disabled or hidden", async () => {

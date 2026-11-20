@@ -157,6 +157,7 @@ function pendingMembers(members: QuotaSubscription[], failures: Map<Source, Quot
 async function attemptRead(source: Source, task: Task, members: QuotaSubscription[], attempt: number, resolveFirst: boolean) {
   if (attempt) { task.phase = "wait"; await wait(source, retryDelays[attempt - 1], members); }
   if (source.task !== task) return null;
+  if (!members.some(member => member.active)) return null;
   if (resolveFirst || attempt) {
     task.phase = "resolve";
     await revalidate(members, task.refresh, () => source.task === task);
