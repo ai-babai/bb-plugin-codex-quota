@@ -91,7 +91,8 @@ it.each(["", "-1", "1.5", "2147484"])("rejects interval %j accessibly without pe
   expect(updateSettings).not.toHaveBeenCalled();
   expect(input.getAttribute("aria-invalid")).toBe("true");
   const help = document.getElementById(input.getAttribute("aria-describedby")!);
-  expect(help?.textContent).toContain("Enter a whole number");
+  const message = value === "2147484" ? "Maximum interval: 2,147,483 s." : "Enter a whole number, 0 or higher.";
+  expect(help?.textContent).toBe(message);
   expect(document.activeElement).toBe(input);
 });
 
