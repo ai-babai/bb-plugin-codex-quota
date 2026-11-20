@@ -122,7 +122,7 @@ function readResets(child: CodexProcess, input: ResetQuery, signal: AbortSignal)
     send({
       id: 1,
       method: "initialize",
-      params: { clientInfo: { name: "bb-codex-quota", title: "BB Codex Quota", version: "0.2.0" } },
+      params: { clientInfo: { name: "bb-codex-quota", title: "BB Codex Quota", version: "0.2.1" } },
     });
   });
 }
