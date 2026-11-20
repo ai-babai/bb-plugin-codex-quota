@@ -77,9 +77,9 @@ function ResetExpiries({ summary, format }: { summary: ResetSummary; format: Res
   return <ul className="grid gap-1">
     {Array.from(rows, ([seconds, count]) => {
       const expiry = seconds === null ? null : format.formatExpiry(seconds);
-      return <li key={seconds ?? "unlimited"} className="flex items-baseline justify-between gap-4">
-        <span>{expiry?.date ?? text.noExpiry}{count > 1 && ` × ${count}`}</span>
-        {expiry && <span className="whitespace-nowrap text-muted-foreground tabular-nums">{expiry.time}</span>}
+      return <li key={seconds ?? "unlimited"} className="flex items-baseline justify-between gap-4 tabular-nums">
+        <span>{expiry?.date ?? text.noExpiry}{count > 1 && <span className="text-muted-foreground"> × {count}</span>}</span>
+        {expiry && <span className="whitespace-nowrap text-muted-foreground">{expiry.time}</span>}
       </li>;
     })}
     {missing > 0 && <li className="text-muted-foreground">{text.unknownExpiry}{missing > 1 && ` × ${missing}`}</li>}
@@ -161,8 +161,8 @@ function ResetDetails({ location, quota, sourceKey, format, badge, label }: Omit
     <Popover.Content side="top" align="start" sideOffset={4} collisionPadding={8} aria-label={format.text.resets}
       onOpenAutoFocus={keepFocus} onCloseAutoFocus={keepFocus}
       onPointerEnter={interaction.cancelTimer} onPointerLeave={event => interaction.leave(event, true)}
-      className="z-50 grid min-w-36 gap-1.5 rounded-md border border-border bg-popover p-2 text-xs text-popover-foreground shadow-md">
-      <div className="font-medium">{format.text.resets}</div>
+      className="z-50 grid min-w-36 gap-2 rounded-md border border-border bg-popover p-2 text-xs leading-4 text-popover-foreground shadow-md">
+      <div className="text-[11px] font-medium text-muted-foreground">{format.text.resets}</div>
       {summary ? <ResetExpiries summary={summary} format={format} /> : <span role="status">…</span>}
     </Popover.Content>
   </Popover.Root>;

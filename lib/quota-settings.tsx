@@ -187,28 +187,28 @@ function QuotaSettingsForm({ initial, language, surface, backButton }: {
     </div>
     <fieldset disabled={status === "saving"} className="grid min-w-0 gap-1.5 disabled:opacity-60">
       <div className="grid gap-1">
-        <div className="flex min-h-7 flex-wrap items-center justify-between gap-x-2 gap-y-1 px-1">
+        <div className="flex min-h-7 flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <div className="flex min-w-0 items-center">
             <label htmlFor={`${id}-interval`}>{text.interval}</label>
             <IntervalHelp id={`${id}-interval-help`} label={text.help} text={text.off} />
           </div>
-          <label className="ml-auto inline-flex h-6 cursor-text items-baseline gap-0.5 self-center rounded border border-border bg-background px-1.5 leading-5 focus-within:border-ring has-[[aria-invalid=true]]:border-destructive!">
+          <label className="ml-auto inline-flex h-7 cursor-text items-baseline gap-1 self-center rounded border border-transparent bg-muted px-2 leading-[26px] hover:border-border focus-within:border-ring has-[[aria-invalid=true]]:border-destructive!">
             <input id={`${id}-interval`} type="number" inputMode="numeric" min={0} max={maxIntervalSeconds} step={1} required
               value={interval} aria-label={text.intervalLabel} aria-invalid={invalid || undefined}
               aria-describedby={invalid ? `${id}-interval-error` : `${id}-interval-help`}
-              style={{ width: `${Math.min(7, Math.max(3, interval.length))}ch` }}
+              style={{ width: `${Math.min(7, Math.max(2, interval.length))}ch` }}
               className="m-0 min-w-0 appearance-none border-0 bg-transparent p-0 text-end font-medium tabular-nums text-popover-foreground outline-none [&::-webkit-inner-spin-button]:appearance-none"
               onChange={event => { setInterval(event.target.value); setInvalid(false); setStatus("idle"); }} />
             <span aria-hidden="true" className="text-muted-foreground">{text.unit}</span>
           </label>
         </div>
-        {invalid && <p id={`${id}-interval-error`} role="alert" className="px-1 text-destructive">{next.refreshIntervalSeconds > maxIntervalSeconds ? text.tooLong : text.invalid}</p>}
+        {invalid && <p id={`${id}-interval-error`} role="alert" className="text-destructive">{next.refreshIntervalSeconds > maxIntervalSeconds ? text.tooLong : text.invalid}</p>}
       </div>
       <div role="group" aria-label={text.show} className="flex gap-1">
         <PlacementToggle label={text.chat} name={text.chatName} checked={draft.showInChat} onChange={showInChat => edit({ showInChat })} />
         <PlacementToggle label={text.sidebar} name={text.sidebarName} checked={draft.showInSidebar} onChange={showInSidebar => edit({ showInSidebar })} />
       </div>
     </fieldset>
-    {status === "failed" && <p role="alert" className="px-1 text-destructive">{text.failed}</p>}
+    {status === "failed" && <p role="alert" className="text-destructive">{text.failed}</p>}
   </form>;
 }
