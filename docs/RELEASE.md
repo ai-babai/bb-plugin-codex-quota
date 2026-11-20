@@ -14,7 +14,7 @@ listing and its images. A maintainer reviews the submission, and a merge to
 | GitHub owner | `ai-babai` |
 | Plugin repository | [ai-babai/bb-plugin-codex-quota](https://github.com/ai-babai/bb-plugin-codex-quota) |
 | Package and BB ID | `bb-plugin-codex-quota` · `codex-quota` |
-| Current release | `v0.2.1` |
+| Current release | `v0.2.2` |
 | Marketplace tracking range | `^0.2.0` |
 | Primary category | `token-usage-and-limits` |
 
@@ -42,13 +42,13 @@ release before the first push, public visibility change or tag. The owner can
 approve a private repository update separately.
 
 The public Git source for the listing must resolve anonymously, and its
-`v0.2.1` tag must point at the approved commit. Use an annotated tag and verify
+`v0.2.2` tag must point at the approved commit. Use an annotated tag and verify
 the peeled commit. Replace `APPROVED_COMMIT` with the full reviewed SHA.
 
 ```sh
-git tag -a v0.2.1 APPROVED_COMMIT -m 'Codex Quota 0.2.1'
-git push origin refs/tags/v0.2.1
-git ls-remote --tags https://github.com/ai-babai/bb-plugin-codex-quota.git 'refs/tags/v0.2.1*'
+git tag -a v0.2.2 APPROVED_COMMIT -m 'Codex Quota 0.2.1'
+git push origin refs/tags/v0.2.2
+git ls-remote --tags https://github.com/ai-babai/bb-plugin-codex-quota.git 'refs/tags/v0.2.2*'
 ```
 
 ## 3. Validate the listing

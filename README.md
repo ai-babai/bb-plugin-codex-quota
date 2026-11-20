@@ -4,8 +4,6 @@
 
 Codex Quota shows how much of your OpenAI Codex subscription quota is left and when each limit resets. Select Codex and an existing machine in a new BB chat to check your limits before sending the first message.
 
-> This branch previews a redesigned quota card and quick settings. The stable release is [v0.2.1](https://github.com/ai-babai/bb-plugin-codex-quota/tree/v0.2.1#readme).
-
 <img src="docs/screenshots/pro-weekly-en.png" width="752" alt="Codex Pro card in a BB chat. It shows the weekly quota, its reset countdown, and a lightning bolt with three manual resets">
 
 <details>
