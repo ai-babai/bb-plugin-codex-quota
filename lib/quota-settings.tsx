@@ -13,14 +13,14 @@ export interface QuotaSettingsValues {
 const maxIntervalSeconds = Math.floor(2_147_483_647 / 1000);
 const copy = {
   en: {
-    settings: "Settings", back: "Back", interval: "Refresh every", show: "Show ring", intervalLabel: "Refresh interval, seconds", unit: "s", help: "About auto-refresh", off: "0 disables auto-refresh",
-    chat: "In chat", sidebar: "In sidebar", save: "Save", retry: "Retry",
+    settings: "Settings", back: "Back", interval: "Refresh", show: "Show ring", intervalLabel: "Refresh interval, seconds", unit: "s", help: "About auto-refresh", off: "0 disables auto-refresh",
+    chat: "Chat", sidebar: "Sidebar", chatName: "Ring in chat", sidebarName: "Ring in sidebar", save: "Save", retry: "Retry",
     saving: "Saving…", saved: "Saved", failed: "Could not save. Try again.", unavailable: "Settings unavailable",
     invalid: "Enter a whole number, 0 or higher.", tooLong: `Maximum interval: ${maxIntervalSeconds.toLocaleString("en-US")} s.`,
   },
   ru: {
-    settings: "Настройки", back: "Назад", interval: "Обновлять раз в", show: "Показывать кольцо", intervalLabel: "Обновление, секунды", unit: "с", help: "Об автообновлении", off: "0 отключает автообновление",
-    chat: "В чате", sidebar: "В боковой панели", save: "Сохранить", retry: "Повторить",
+    settings: "Настройки", back: "Назад", interval: "Обновление", show: "Показывать кольцо", intervalLabel: "Обновление, секунды", unit: "с", help: "Об автообновлении", off: "0 отключает автообновление",
+    chat: "В чате", sidebar: "В меню", chatName: "Кольцо в чате", sidebarName: "Кольцо в меню", save: "Сохранить", retry: "Повторить",
     saving: "Сохранение…", saved: "Сохранено", failed: "Не удалось сохранить. Попробуйте ещё раз.", unavailable: "Настройки недоступны",
     invalid: "Введите целое число не меньше нуля.", tooLong: `Максимум — ${maxIntervalSeconds.toLocaleString("ru-RU")} с.`,
   },
@@ -90,13 +90,18 @@ export function QuotaSettingsCard({ children, surface = "chat" }: {
   </>;
 }
 
-function SettingSwitch({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
-  return <label className="flex min-h-7 cursor-pointer items-center justify-between gap-3 rounded px-1 hover:bg-state-hover active:bg-muted [@media(any-pointer:coarse)]:min-h-9">
-    <span className="min-w-0">{label}</span>
-    <input type="checkbox" role="switch" checked={checked} className="peer sr-only" onChange={event => onChange(event.target.checked)} />
-    <span aria-hidden="true" className="inline-flex h-4 w-7 shrink-0 items-center rounded-full bg-muted-foreground/40 p-0.5 peer-checked:bg-teal-600 peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-popover dark:peer-checked:bg-teal-400">
-      <span className={`size-3 rounded-full bg-background shadow-sm transition-transform motion-reduce:transition-none ${checked ? "translate-x-3" : "translate-x-0"}`} />
+/** One of two independent placement chips. The mark, not colour alone, shows on or off. */
+function PlacementToggle({ label, name, checked, onChange }: {
+  label: string; name: string; checked: boolean; onChange: (checked: boolean) => void;
+}) {
+  return <label title={name} className={`flex min-h-7 min-w-0 flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded border px-1.5 hover:bg-state-hover active:bg-muted has-focus-visible:ring-2 has-focus-visible:ring-ring [@media(any-pointer:coarse)]:min-h-9 ${checked
+    ? "border-border text-popover-foreground" : "border-dashed border-border text-muted-foreground"}`}>
+    <input type="checkbox" role="switch" aria-label={name} checked={checked} className="sr-only" onChange={event => onChange(event.target.checked)} />
+    <span aria-hidden="true" className={`inline-flex size-3.5 shrink-0 items-center justify-center rounded-full ${checked
+      ? "bg-teal-600 text-white dark:bg-teal-400 dark:text-popover" : "border border-muted-foreground/60"}`}>
+      {checked && <Icon name="Check" className="size-2.5" />}
     </span>
+    {label}
   </label>;
 }
 
@@ -109,7 +114,7 @@ function SaveButton({ status, dirty, text }: { status: SaveState; dirty: boolean
       ? "border-teal-600/60 bg-teal-600/10 text-teal-700 hover:bg-teal-600/20 active:bg-teal-600/30 active:shadow-inner dark:border-teal-400/60 dark:text-teal-400"
       : "border-transparent text-muted-foreground"}`}>
     {status === "saved" && <Icon name="Check" aria-hidden="true" className="size-3 text-teal-600 dark:text-teal-400" />}
-    <span role={status === "saved" ? "status" : undefined}>{label}</span>
+    <span role={status === "saved" ? "status" : undefined} className={status === "saved" ? "sr-only @[11rem]:not-sr-only" : undefined}>{label}</span>
   </button>;
 }
 
@@ -175,12 +180,12 @@ function QuotaSettingsForm({ initial, language, surface, backButton }: {
     }
   }
 
-  return <form aria-label={text.settings} className="grid gap-2 text-xs leading-4" noValidate onSubmit={event => { void save(event); }} lang={locale}>
+  return <form aria-label={text.settings} className="@container grid gap-1.5 text-xs leading-4" noValidate onSubmit={event => { void save(event); }} lang={locale}>
     <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
       {backButton}
       <SaveButton status={status} dirty={dirty} text={text} />
     </div>
-    <fieldset disabled={status === "saving"} className="grid min-w-0 gap-2 disabled:opacity-60">
+    <fieldset disabled={status === "saving"} className="grid min-w-0 gap-1.5 disabled:opacity-60">
       <div className="grid gap-1">
         <div className="flex min-h-7 flex-wrap items-center justify-between gap-x-2 gap-y-1 px-1">
           <div className="flex min-w-0 items-center">
@@ -199,10 +204,9 @@ function QuotaSettingsForm({ initial, language, surface, backButton }: {
         </div>
         {invalid && <p id={`${id}-interval-error`} role="alert" className="px-1 text-destructive">{next.refreshIntervalSeconds > maxIntervalSeconds ? text.tooLong : text.invalid}</p>}
       </div>
-      <div role="group" aria-labelledby={`${id}-show`} className="grid">
-        <p id={`${id}-show`} className="px-1 pb-0.5 text-[11px] text-muted-foreground">{text.show}</p>
-        <SettingSwitch label={text.chat} checked={draft.showInChat} onChange={showInChat => edit({ showInChat })} />
-        <SettingSwitch label={text.sidebar} checked={draft.showInSidebar} onChange={showInSidebar => edit({ showInSidebar })} />
+      <div role="group" aria-label={text.show} className="flex gap-1">
+        <PlacementToggle label={text.chat} name={text.chatName} checked={draft.showInChat} onChange={showInChat => edit({ showInChat })} />
+        <PlacementToggle label={text.sidebar} name={text.sidebarName} checked={draft.showInSidebar} onChange={showInSidebar => edit({ showInSidebar })} />
       </div>
     </fieldset>
     {status === "failed" && <p role="alert" className="px-1 text-destructive">{text.failed}</p>}

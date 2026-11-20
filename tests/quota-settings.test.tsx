@@ -49,15 +49,15 @@ it("defaults both locations to true, localizes EN/RU and patches actual BB setti
   expect(interval.value).toBe("120");
   expect(document.getElementById(interval.getAttribute("aria-describedby")!)?.textContent).toBe("0 disables auto-refresh");
   expect(screen.queryByRole("tooltip")).toBeNull();
-  expect((screen.getByRole("switch", { name: "In chat" }) as HTMLInputElement).checked).toBe(true);
-  expect((screen.getByRole("switch", { name: "In sidebar" }) as HTMLInputElement).checked).toBe(true);
+  expect((screen.getByRole("switch", { name: "Ring in chat" }) as HTMLInputElement).checked).toBe(true);
+  expect((screen.getByRole("switch", { name: "Ring in sidebar" }) as HTMLInputElement).checked).toBe(true);
   expect(screen.queryByRole("combobox")).toBeNull();
   expect(screen.queryByRole("heading", { name: "Settings" })).toBeNull();
   expect(screen.queryByRole("status")).toBeNull();
   expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
   fireEvent.change(interval, { target: { value: "0" } });
   expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(false);
-  fireEvent.click(screen.getByRole("switch", { name: "In sidebar" }));
+  fireEvent.click(screen.getByRole("switch", { name: "Ring in sidebar" }));
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save" })));
   expect(updateSettings).toHaveBeenCalledExactlyOnceWith({
     pluginId: "codex-quota", values: { refreshIntervalSeconds: 0, showInSidebar: false },
@@ -76,7 +76,7 @@ it("defaults both locations to true, localizes EN/RU and patches actual BB setti
   expect(screen.getByRole("button", { name: "Назад" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "Об автообновлении" })).toBeTruthy();
   expect((screen.getByRole("spinbutton", { name: "Обновление, секунды" }) as HTMLInputElement).value).toBe("300");
-  fireEvent.click(screen.getByRole("switch", { name: "В чате" }));
+  fireEvent.click(screen.getByRole("switch", { name: "Кольцо в чате" }));
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "Сохранить" })));
   expect(russian.updateSettings).toHaveBeenCalledExactlyOnceWith({ pluginId: "codex-quota", values: { showInChat: true } });
   expect(screen.getByRole("status").textContent).toBe("Сохранено");
@@ -171,8 +171,8 @@ it("opens and navigates with touch without treating touch entry as hover", async
   tap(ring);
   tap(screen.getByRole("button", { name: "Settings" }));
   expect(screen.getByRole("spinbutton")).toBeTruthy();
-  tap(screen.getByRole("switch", { name: "In chat" }));
-  expect((screen.getByRole("switch", { name: "In chat" }) as HTMLInputElement).checked).toBe(false);
+  tap(screen.getByRole("switch", { name: "Ring in chat" }));
+  expect((screen.getByRole("switch", { name: "Ring in chat" }) as HTMLInputElement).checked).toBe(false);
   tap(screen.getByRole("button", { name: "Back" }));
   expect(screen.getByRole("heading", { name: "Codex · Pro" })).toBeTruthy();
   tap(ring);
@@ -181,8 +181,8 @@ it("opens and navigates with touch without treating touch entry as hover", async
 });
 
 it.each([
-  { surface: "chat" as const, current: "In chat", other: "In sidebar" },
-  { surface: "sidebar" as const, current: "In sidebar", other: "In chat" },
+  { surface: "chat" as const, current: "Ring in chat", other: "Ring in sidebar" },
+  { surface: "sidebar" as const, current: "Ring in sidebar", other: "Ring in chat" },
 ])("toasts only when saving hides the current $surface ring, without an inline duplicate", async ({ surface, current, other }) => {
   const { ring, updateSettings } = mount({}, surface);
   openSettings(ring);
@@ -207,7 +207,7 @@ it("delivers the localized host toast after the saving card has unmounted", asyn
   let confirm!: (result: { ok: true; schema: {}; values: { showInChat: false; language: string } }) => void;
   updateSettings.mockImplementationOnce(() => new Promise(resolve => { confirm = resolve; }));
   openSettings(ring, "Настройки");
-  fireEvent.click(screen.getByRole("switch", { name: "В чате" }));
+  fireEvent.click(screen.getByRole("switch", { name: "Кольцо в чате" }));
   fireEvent.click(screen.getByRole("button", { name: "Сохранить" }));
   slot.lifecycle.unmount();
   await act(async () => confirm({ ok: true, schema: {}, values: { showInChat: false, language: "ru" } }));
@@ -229,7 +229,7 @@ it("does not toast an unsuccessful hide and lets keyboard users retry", async ()
   fireEvent.keyUp(gear, { key: " " });
   fireEvent.click(gear, { detail: 0 });
   expect(document.activeElement).toBe(screen.getByRole("button", { name: "Back" }));
-  fireEvent.click(screen.getByRole("switch", { name: "In chat" }));
+  fireEvent.click(screen.getByRole("switch", { name: "Ring in chat" }));
   await act(async () => fireEvent.submit(screen.getByRole("form", { name: "Settings" })));
   expect(notify.success).not.toHaveBeenCalled();
   const retry = screen.getByRole("button", { name: "Retry" });
