@@ -62,27 +62,37 @@ export function useAvailableResetCount(snapshot: ResetSnapshot, fresh: boolean, 
   return summary?.count;
 }
 
-function ResetExpiries({ summary, format }: { summary: ResetSummary; format: ResetProps["format"] }) {
-  const { text } = format;
-  if (summary.count === 0) return <>{text.noResets}</>;
-  if (!summary.expiries?.length || summary.count === null) return <>{text.unknownExpiry}</>;
+type ExpiryRow = { key: string; label: string; time?: string; count: number; known: boolean };
 
-  const rows = new Map<number | null, number>();
+function expiryRows(summary: ResetSummary & { expiries: (number | null)[] }, format: ResetProps["format"]) {
+  const groups = new Map<number | null, number>();
   const sorted = [...summary.expiries].sort((a, b) => (a ?? Infinity) - (b ?? Infinity));
   for (const seconds of sorted) {
     const minute = seconds === null ? null : Math.floor(seconds / 60) * 60;
-    rows.set(minute, (rows.get(minute) ?? 0) + 1);
+    groups.set(minute, (groups.get(minute) ?? 0) + 1);
   }
-  const missing = summary.count - sorted.length;
+  const rows: ExpiryRow[] = Array.from(groups, ([seconds, count]) => {
+    if (seconds === null) return { key: "unlimited", label: format.text.noExpiry, count, known: true };
+    const { date, time } = format.formatExpiry(seconds);
+    return { key: String(seconds), label: date, time, count, known: true };
+  });
+  const missing = (summary.count ?? 0) - sorted.length;
+  if (missing > 0) rows.push({ key: "unknown", label: format.text.unknownExpiry, count: missing, known: false });
+  return rows;
+}
+
+/** Date and time sit together on the left so they read as one moment; duplicates collapse into a count on the right. */
+function ResetExpiries({ summary, format }: { summary: ResetSummary; format: ResetProps["format"] }) {
+  const { text } = format;
+  if (summary.count === 0) return <span className="text-muted-foreground">{text.noResets}</span>;
+  if (!summary.expiries?.length || summary.count === null) return <span className="text-muted-foreground">{text.unknownExpiry}</span>;
   return <ul className="grid gap-1">
-    {Array.from(rows, ([seconds, count]) => {
-      const expiry = seconds === null ? null : format.formatExpiry(seconds);
-      return <li key={seconds ?? "unlimited"} className="flex items-baseline justify-between gap-4">
-        <span>{expiry?.date ?? text.noExpiry}{count > 1 && ` × ${count}`}</span>
-        {expiry && <span className="whitespace-nowrap text-muted-foreground tabular-nums">{expiry.time}</span>}
-      </li>;
-    })}
-    {missing > 0 && <li className="text-muted-foreground">{text.unknownExpiry}{missing > 1 && ` × ${missing}`}</li>}
+    {expiryRows({ ...summary, expiries: summary.expiries }, format).map(row =>
+      <li key={row.key} className={`flex items-baseline gap-1.5 whitespace-nowrap tabular-nums ${row.known ? "" : "text-muted-foreground"}`}>
+        <span>{row.label}</span>
+        {row.time && <>{" "}<span className="text-muted-foreground">{row.time}</span></>}
+        {row.count > 1 && <>{" "}<span className="ml-auto pl-2 text-muted-foreground">× {row.count}</span></>}
+      </li>)}
   </ul>;
 }
 
@@ -161,7 +171,7 @@ function ResetDetails({ location, quota, sourceKey, format, badge, label }: Omit
     <Popover.Content side="top" align="start" sideOffset={4} collisionPadding={8} aria-label={format.text.resets}
       onOpenAutoFocus={keepFocus} onCloseAutoFocus={keepFocus}
       onPointerEnter={interaction.cancelTimer} onPointerLeave={event => interaction.leave(event, true)}
-      className="z-50 grid min-w-36 gap-1.5 rounded-md border border-border bg-popover p-2 text-xs text-popover-foreground shadow-md">
+      className="z-50 grid min-w-36 gap-1.5 rounded-md border border-border bg-popover p-2 text-xs leading-4 text-popover-foreground shadow-md">
       <div className="font-medium">{format.text.resets}</div>
       {summary ? <ResetExpiries summary={summary} format={format} /> : <span role="status">…</span>}
     </Popover.Content>
