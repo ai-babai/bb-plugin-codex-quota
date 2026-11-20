@@ -13,13 +13,13 @@ export interface QuotaSettingsValues {
 const maxIntervalSeconds = Math.floor(2_147_483_647 / 1000);
 const copy = {
   en: {
-    settings: "Settings", back: "Back", interval: "Refresh", intervalLabel: "Refresh interval, seconds", unit: "s", help: "About auto-refresh", off: "0 disables auto-refresh",
+    settings: "Settings", back: "Back", interval: "Refresh every", show: "Show ring", intervalLabel: "Refresh interval, seconds", unit: "s", help: "About auto-refresh", off: "0 disables auto-refresh",
     chat: "In chat", sidebar: "In sidebar", save: "Save", retry: "Retry",
     saving: "Saving…", saved: "Saved", failed: "Could not save. Try again.", unavailable: "Settings unavailable",
     invalid: `Enter a whole number from 0 to ${maxIntervalSeconds}.`,
   },
   ru: {
-    settings: "Настройки", back: "Назад", interval: "Обновление", intervalLabel: "Обновление, секунды", unit: "с", help: "Об автообновлении", off: "0 отключает автообновление",
+    settings: "Настройки", back: "Назад", interval: "Обновлять каждые", show: "Показывать кольцо", intervalLabel: "Обновление, секунды", unit: "с", help: "Об автообновлении", off: "0 отключает автообновление",
     chat: "В чате", sidebar: "В боковой панели", save: "Сохранить", retry: "Повторить",
     saving: "Сохранение…", saved: "Сохранено", failed: "Не удалось сохранить. Попробуйте ещё раз.", unavailable: "Настройки недоступны",
     invalid: `Введите целое число от 0 до ${maxIntervalSeconds}.`,
@@ -74,7 +74,7 @@ export function QuotaSettingsCard({ children, surface = "chat" }: {
     className={`shrink-0 ${buttonClass}`} onClick={() => turn(true)}>
     <Icon name="Settings" aria-hidden="true" className="size-3" />
   </button>;
-  const backButton = <button ref={back} type="button" data-codex-quota-back="" className={`-ml-1 ${buttonClass}`} onClick={() => turn(false)}>
+  const backButton = <button ref={back} type="button" data-codex-quota-back="" className={buttonClass} onClick={() => turn(false)}>
     <Icon name="ChevronLeft" aria-hidden="true" className="size-3" />{text.back}
   </button>;
 
@@ -91,8 +91,8 @@ export function QuotaSettingsCard({ children, surface = "chat" }: {
 }
 
 function SettingSwitch({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
-  return <label className="-mx-1 flex min-h-7 cursor-pointer items-center justify-between gap-2 rounded px-1 hover:bg-state-hover active:bg-muted">
-    {label}
+  return <label className="flex min-h-7 cursor-pointer items-center justify-between gap-3 rounded px-1 hover:bg-state-hover active:bg-muted [@media(any-pointer:coarse)]:min-h-9">
+    <span className="min-w-0">{label}</span>
     <input type="checkbox" role="switch" checked={checked} className="peer sr-only" onChange={event => onChange(event.target.checked)} />
     <span aria-hidden="true" className="inline-flex h-4 w-7 shrink-0 items-center rounded-full bg-muted-foreground/40 p-0.5 peer-checked:bg-teal-600 peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-popover dark:peer-checked:bg-teal-400">
       <span className={`size-3 rounded-full bg-background shadow-sm transition-transform motion-reduce:transition-none ${checked ? "translate-x-3" : "translate-x-0"}`} />
@@ -105,9 +105,9 @@ type SaveState = "idle" | "saving" | "saved" | "failed";
 function SaveButton({ status, dirty, text }: { status: SaveState; dirty: boolean; text: typeof copy.en }) {
   const label = { idle: text.save, saving: text.saving, saved: text.saved, failed: text.retry }[status];
   return <button type="submit" data-state={status} disabled={status === "saving" || !dirty}
-    className={`inline-flex min-h-6 items-center justify-center gap-1 rounded border px-1.5 font-medium ${focusClass} ${dirty
+    className={`inline-flex min-h-6 items-center justify-center gap-1 rounded border px-2 font-medium ${focusClass} ${!dirty && status === "idle" ? "invisible" : ""} ${dirty
       ? "border-teal-600/60 bg-teal-600/10 text-teal-700 hover:bg-teal-600/20 active:bg-teal-600/30 active:shadow-inner dark:border-teal-400/60 dark:text-teal-400"
-      : "border-transparent text-muted-foreground data-[state=idle]:opacity-60"}`}>
+      : "border-transparent text-muted-foreground"}`}>
     {status === "saved" && <Icon name="Check" aria-hidden="true" className="size-3 text-teal-600 dark:text-teal-400" />}
     <span role={status === "saved" ? "status" : undefined}>{label}</span>
   </button>;
@@ -175,31 +175,36 @@ function QuotaSettingsForm({ initial, language, surface, backButton }: {
     }
   }
 
-  return <form aria-label={text.settings} className="grid gap-1.5 text-xs leading-4" noValidate onSubmit={event => { void save(event); }} lang={locale}>
+  return <form aria-label={text.settings} className="grid gap-2 text-xs leading-4" noValidate onSubmit={event => { void save(event); }} lang={locale}>
     <div className="flex items-center justify-between gap-2">
       {backButton}
       <SaveButton status={status} dirty={dirty} text={text} />
     </div>
-    <fieldset disabled={status === "saving"} className="grid min-w-0 gap-0.5 disabled:opacity-60">
-      <div className="flex min-h-7 items-center justify-between gap-1">
-        <div className="flex items-center">
-          <label htmlFor={`${id}-interval`}>{text.interval}</label>
-          <IntervalHelp id={`${id}-interval-help`} label={text.help} text={text.off} />
+    <fieldset disabled={status === "saving"} className="grid min-w-0 gap-2 disabled:opacity-60">
+      <div className="grid gap-1">
+        <div className="flex min-h-7 flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1">
+          <div className="flex min-w-0 items-center">
+            <label htmlFor={`${id}-interval`}>{text.interval}</label>
+            <IntervalHelp id={`${id}-interval-help`} label={text.help} text={text.off} />
+          </div>
+          <label className="ml-auto inline-flex h-6 cursor-text items-baseline gap-0.5 self-center rounded border border-border bg-background px-1.5 leading-5 focus-within:border-ring">
+            <input id={`${id}-interval`} type="number" inputMode="numeric" min={0} max={maxIntervalSeconds} step={1} required
+              value={interval} aria-label={text.intervalLabel} aria-invalid={invalid || undefined}
+              aria-describedby={invalid ? `${id}-interval-error` : `${id}-interval-help`}
+              style={{ width: `${Math.min(7, Math.max(3, interval.length))}ch` }}
+              className="m-0 min-w-0 appearance-none border-0 bg-transparent p-0 text-end font-medium tabular-nums text-popover-foreground outline-none [&::-webkit-inner-spin-button]:appearance-none"
+              onChange={event => { setInterval(event.target.value); setInvalid(false); setStatus("idle"); }} />
+            <span aria-hidden="true" className="text-muted-foreground">{text.unit}</span>
+          </label>
         </div>
-        <label className="inline-flex h-6 cursor-text items-baseline gap-0.5 self-center rounded border border-border bg-background px-1.5 leading-5 focus-within:border-ring">
-          <input id={`${id}-interval`} type="number" inputMode="numeric" min={0} max={maxIntervalSeconds} step={1} required
-            value={interval} aria-label={text.intervalLabel} aria-invalid={invalid || undefined}
-            aria-describedby={invalid ? `${id}-interval-error` : `${id}-interval-help`}
-            style={{ width: `${Math.min(7, Math.max(3, interval.length))}ch` }}
-            className="m-0 min-w-0 appearance-none border-0 bg-transparent p-0 text-end font-medium tabular-nums text-popover-foreground outline-none [&::-webkit-inner-spin-button]:appearance-none"
-            onChange={event => { setInterval(event.target.value); setInvalid(false); setStatus("idle"); }} />
-          <span aria-hidden="true" className="text-muted-foreground">{text.unit}</span>
-        </label>
+        {invalid && <p id={`${id}-interval-error`} role="alert" className="px-1 text-destructive">{text.invalid}</p>}
       </div>
-      {invalid && <p id={`${id}-interval-error`} role="alert" className="text-destructive">{text.invalid}</p>}
-      <SettingSwitch label={text.chat} checked={draft.showInChat} onChange={showInChat => edit({ showInChat })} />
-      <SettingSwitch label={text.sidebar} checked={draft.showInSidebar} onChange={showInSidebar => edit({ showInSidebar })} />
+      <div role="group" aria-labelledby={`${id}-show`} className="grid">
+        <p id={`${id}-show`} className="px-1 pb-0.5 text-[11px] text-muted-foreground">{text.show}</p>
+        <SettingSwitch label={text.chat} checked={draft.showInChat} onChange={showInChat => edit({ showInChat })} />
+        <SettingSwitch label={text.sidebar} checked={draft.showInSidebar} onChange={showInSidebar => edit({ showInSidebar })} />
+      </div>
     </fieldset>
-    {status === "failed" && <p role="alert" className="text-destructive">{text.failed}</p>}
+    {status === "failed" && <p role="alert" className="px-1 text-destructive">{text.failed}</p>}
   </form>;
 }
