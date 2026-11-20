@@ -119,7 +119,7 @@ it("uses the saved language and refresh triggers and marks elapsed windows stale
   expect(ring.querySelector("svg text")?.textContent).toBe("?");
   rpc.call.mockClear();
   fireEvent.pointerOver(ring, { pointerType: "mouse" });
-  expect(await screen.findByText("Ожидаем обновления квоты")).toBeTruthy();
+  expect(await screen.findByText("Ожидаем обновления лимитов")).toBeTruthy();
   expect(screen.getByRole("meter", { name: "Неделя: осталось" }).closest(".grid")
     ?.querySelector("[data-codex-quota-remaining]")?.textContent).toBe("10% осталось · устарело");
   expect(rpc.call).not.toHaveBeenCalledWith("quota", threadRefresh());

@@ -2,6 +2,14 @@
 
 [Русский](README.ru.md)
 
+> **Design preview.** This is the `design/opus-ui-ux` branch: a reworked quota card and settings for comparison with 0.2.1. Screenshots may still show 0.2.1. For the stable release, see [v0.2.1](https://github.com/ai-babai/bb-plugin-codex-quota/tree/v0.2.1#readme) and its [installation](#installation).
+>
+> ```sh
+> bb plugin install 'git:https://github.com/ai-babai/bb-plugin-codex-quota.git@design/opus-ui-ux'
+> ```
+>
+> To return, install the stable range again: `bb plugin install 'git:https://github.com/ai-babai/bb-plugin-codex-quota.git@^0.2.0'`.
+
 Codex Quota shows how much of your OpenAI Codex subscription quota is left and when each limit resets. Select Codex and an existing machine in a new BB chat to check your limits before sending the first message.
 
 <img src="docs/screenshots/pro-weekly-en.png" width="752" alt="Codex Pro card in a BB chat. It shows the weekly quota, its reset countdown, and a lightning bolt with three manual resets">
@@ -19,7 +27,7 @@ In this example, 78% of the five-hour quota and 46% of the weekly quota remain. 
 
 The teal ring sits beside the context meter in Codex chats and side chats, and above Settings in the left sidebar. A Codex side chat shows the quota for its machine even when the main chat uses another provider.
 
-Hover over the ring to preview each reported limit, its reset time and countdown. Click the ring to close the preview, then click again to reopen it. With the ring focused, use **Enter** or **Space** to toggle it and **Esc** to close it. While the first reading is loading, the ring shows a spinner. A **?** means quota data is missing, at least 90 minutes old, or awaiting an update after a reset.
+Hover over the ring to preview each reported limit. The large number is what is left, and every limit uses the same bar. The vertical mark shows where an even pace would be: a fill reaching past it means the quota will outlast the window. Below the bar are the countdown and the reset time: the time today, the weekday within the next six days, otherwise the date. Click the ring to close the preview, then click again to reopen it. With the ring focused, use **Enter** or **Space** to toggle it and **Esc** to close it. While the first reading is loading, the ring shows a spinner. A **?** means quota data is missing, at least 90 minutes old, or awaiting an update after a reset.
 
 The lightning bolt shows the number of available manual resets, including zero. It stays hidden when the count is unknown. If resets are available, hover over or tap the bolt to check their expiry dates without using a reset.
 
@@ -31,7 +39,7 @@ Tap the teal ring in the chat composer or open the left sidebar and tap the ring
 
 ## Quick settings
 
-The **Settings** gear beside the plan name opens **Refresh**, **In chat** and **In sidebar**. Select **Save** to apply changes.
+The **Settings** gear beside the plan name opens **Refresh every** and the **Show ring** switches **In chat** and **In sidebar**. **Save** appears once you change something.
 
 <img src="docs/screenshots/sidebar-en.png" width="600" alt="Left sidebar in BB with the Codex Pro quota card on the left and its refresh and placement settings on the right">
 

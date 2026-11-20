@@ -13,7 +13,7 @@ const en = quotaFormat("en-US", english);
 const ru = quotaFormat("ru-RU", {
   title: "Подписка", unavailable: "Лимиты недоступны", loading: "Получаем лимиты…",
   remaining: "осталось", used: "использовано",
-  manualResets: "Доступно сбросов", resets: "Сбросы", noExpiry: "Бессрочно", unknownExpiry: "Срок неизвестен", noResets: "Сбросов нет", stale: "устарело", resetsIn: "До сброса", waiting: "Ожидаем обновления квоты",
+  manualResets: "Доступно сбросов", resets: "Сбросы", noExpiry: "Бессрочно", unknownExpiry: "Срок неизвестен", noResets: "Сбросов нет", stale: "устарело", resetsIn: "До сброса", waiting: "Ожидаем обновления лимитов",
   fiveHour: "5 часов", daily: "Сутки", weekly: "Неделя", day: "д", hour: "ч", minute: "мин",
 });
 
