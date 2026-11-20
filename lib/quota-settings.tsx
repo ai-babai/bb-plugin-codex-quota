@@ -13,13 +13,13 @@ export interface QuotaSettingsValues {
 const maxIntervalSeconds = Math.floor(2_147_483_647 / 1000);
 const copy = {
   en: {
-    settings: "Settings", back: "Back", interval: "Refresh", show: "Show ring", intervalLabel: "Refresh interval, seconds", unit: "s", help: "About auto-refresh", off: "0 disables auto-refresh",
+    settings: "Settings", back: "Back", interval: "Interval", show: "Show ring", intervalLabel: "Refresh interval, seconds", unit: "s", help: "About auto-refresh", off: "0 disables auto-refresh",
     chat: "Chat", sidebar: "Sidebar", chatName: "Ring in chat", sidebarName: "Ring in sidebar", save: "Save", retry: "Retry",
     saving: "Saving…", saved: "Saved", failed: "Could not save. Try again.", unavailable: "Settings unavailable",
     invalid: "Enter a whole number, 0 or higher.", tooLong: `Maximum interval: ${maxIntervalSeconds.toLocaleString("en-US")} s.`,
   },
   ru: {
-    settings: "Настройки", back: "Назад", interval: "Обновление", show: "Показывать кольцо", intervalLabel: "Обновление, секунды", unit: "с", help: "Об автообновлении", off: "0 отключает автообновление",
+    settings: "Настройки", back: "Назад", interval: "Интервал", show: "Показывать кольцо", intervalLabel: "Интервал обновления, секунды", unit: "с", help: "Об автообновлении", off: "0 отключает автообновление",
     chat: "В чате", sidebar: "В меню", chatName: "Кольцо в чате", sidebarName: "Кольцо в меню", save: "Сохранить", retry: "Повторить",
     saving: "Сохранение…", saved: "Сохранено", failed: "Не удалось сохранить. Попробуйте ещё раз.", unavailable: "Настройки недоступны",
     invalid: "Введите целое число не меньше нуля.", tooLong: `Максимум — ${maxIntervalSeconds.toLocaleString("ru-RU")} с.`,
@@ -40,8 +40,8 @@ const turnStyles = `
 @keyframes codex-quota-turn { from { opacity: .5; transform: perspective(500px) rotateY(-12deg); } to { opacity: 1; transform: perspective(500px) rotateY(0); } }
 [data-codex-quota-side] { animation: codex-quota-turn 140ms ease-out; }
 [data-codex-quota-gear] { width: 24px; height: 24px; padding: 0; }
-[data-codex-quota-back] { min-height: 24px; }
-@media (any-pointer: coarse) { [data-codex-quota-gear] { width: 28px; height: 28px; } [data-codex-quota-back] { min-height: 28px; } }
+[data-codex-quota-back] { min-height: 24px; min-width: 24px; }
+@media (any-pointer: coarse) { [data-codex-quota-gear] { width: 28px; height: 28px; } [data-codex-quota-back] { min-height: 28px; min-width: 28px; } }
 @media (prefers-reduced-motion: reduce) { [data-codex-quota-side] { animation: none; } }
 `;
 
@@ -74,8 +74,8 @@ export function QuotaSettingsCard({ children, surface = "chat" }: {
     className={`shrink-0 ${buttonClass}`} onClick={() => turn(true)}>
     <Icon name="Settings" aria-hidden="true" className="size-3" />
   </button>;
-  const backButton = <button ref={back} type="button" data-codex-quota-back="" className={buttonClass} onClick={() => turn(false)}>
-    <Icon name="ChevronLeft" aria-hidden="true" className="size-3" />{text.back}
+  const backButton = <button ref={back} type="button" data-codex-quota-back="" title={text.back} className={buttonClass} onClick={() => turn(false)}>
+    <Icon name="ChevronLeft" aria-hidden="true" className="size-3" /><span className="sr-only @[11rem]:not-sr-only">{text.back}</span>
   </button>;
 
   return <>
@@ -84,7 +84,7 @@ export function QuotaSettingsCard({ children, surface = "chat" }: {
       lang={values?.language === "ru" ? "ru" : "en"}>
       {settingsSide ? <>
         {values ? <QuotaSettingsForm initial={readSettings(values)} language={values.language} surface={surface} backButton={backButton} />
-          : <>{backButton}<p role="status">{text.unavailable}</p></>}
+          : <div className="@container grid gap-1.5">{backButton}<p role="status">{text.unavailable}</p></div>}
       </> : children(settingsButton)}
     </div>
   </>;

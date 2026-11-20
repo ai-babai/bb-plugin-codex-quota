@@ -75,7 +75,7 @@ it("defaults both locations to true, localizes EN/RU and patches actual BB setti
   openSettings(russian.ring, "Настройки");
   expect(screen.getByRole("button", { name: "Назад" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "Об автообновлении" })).toBeTruthy();
-  expect((screen.getByRole("spinbutton", { name: "Обновление, секунды" }) as HTMLInputElement).value).toBe("300");
+  expect((screen.getByRole("spinbutton", { name: "Интервал обновления, секунды" }) as HTMLInputElement).value).toBe("300");
   fireEvent.click(screen.getByRole("switch", { name: "Кольцо в чате" }));
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "Сохранить" })));
   expect(russian.updateSettings).toHaveBeenCalledExactlyOnceWith({ pluginId: "codex-quota", values: { showInChat: true } });

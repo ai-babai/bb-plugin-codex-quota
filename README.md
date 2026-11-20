@@ -42,7 +42,7 @@ Tap the teal ring in the chat composer or open the left sidebar and tap the ring
 
 ## Quick settings
 
-The **Settings** gear beside the plan name opens the **Refresh** interval and two independent ring placements, **Chat** and **Sidebar**. **Save** appears once you change something.
+The **Settings** gear beside the plan name opens the refresh **Interval** and two independent ring placements, **Chat** and **Sidebar**. **Save** appears once you change something.
 
 <img src="docs/screenshots/sidebar-en.png" width="600" alt="Left sidebar in BB with the Codex Pro quota card on the left and its refresh and placement settings on the right">
 
