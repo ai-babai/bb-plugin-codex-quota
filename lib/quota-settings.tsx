@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef, useState, type FocusEvent, type FormEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { experimental_Icon as Icon, experimental_usePluginId, useSdk, useSettings } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 import { IntervalHelp } from "./interval-help";
@@ -105,21 +105,6 @@ function PlacementToggle({ label, name, checked, onChange }: {
   </label>;
 }
 
-/** Records whether the settings were last reached by pointer or by Tab, without touching focus. */
-function markInput(event: PointerEvent<HTMLFormElement> | KeyboardEvent<HTMLFormElement>) {
-  if ("pointerType" in event) event.currentTarget.dataset.input = "pointer";
-  else if (event.key === "Tab") event.currentTarget.dataset.input = "keyboard";
-}
-
-/** Focus that arrives without a press first, such as Shift+Tab from outside, counts as keyboard. */
-function markFocus(event: FocusEvent<HTMLFormElement>) {
-  event.currentTarget.dataset.input ??= "keyboard";
-}
-
-function clearInput(event: FocusEvent<HTMLFormElement>) {
-  if (!event.currentTarget.contains(event.relatedTarget)) delete event.currentTarget.dataset.input;
-}
-
 type SaveState = "idle" | "saving" | "saved" | "failed";
 
 function SaveButton({ status, dirty, text }: { status: SaveState; dirty: boolean; text: typeof copy.en }) {
@@ -144,6 +129,16 @@ function QuotaSettingsForm({ initial, language, surface, backButton }: {
   const [interval, setInterval] = useState(String(initial.refreshIntervalSeconds));
   const [invalid, setInvalid] = useState(false);
   const [status, setStatus] = useState<SaveState>("idle");
+  const formRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    const form = formRef.current!;
+    // Tab can arrive from outside the popover. Keep native label clicks and touch focus intact.
+    function onTab(event: KeyboardEvent) {
+      if (event.key === "Tab") delete form.dataset.pointer;
+    }
+    form.ownerDocument.addEventListener("keydown", onTab, true);
+    return () => form.ownerDocument.removeEventListener("keydown", onTab, true);
+  }, []);
   const pending = useRef(false);
   const locale = language === "ru" ? "ru" : "en";
   const text = copy[locale];
@@ -195,8 +190,8 @@ function QuotaSettingsForm({ initial, language, surface, backButton }: {
     }
   }
 
-  return <form aria-label={text.settings} className="group/settings @container grid gap-1.5 text-xs leading-4" noValidate onSubmit={event => { void save(event); }} lang={locale}
-    onPointerDownCapture={markInput} onKeyDownCapture={markInput} onFocus={markFocus} onBlur={clearInput}>
+  return <form ref={formRef} aria-label={text.settings} className="group/settings @container grid gap-1.5 text-xs leading-4" noValidate onSubmit={event => { void save(event); }} lang={locale}
+    onPointerDownCapture={event => { event.currentTarget.dataset.pointer = ""; }}>
     <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
       {backButton}
       <SaveButton status={status} dirty={dirty} text={text} />
@@ -209,7 +204,7 @@ function QuotaSettingsForm({ initial, language, surface, backButton }: {
             <IntervalHelp id={`${id}-interval-help`} label={text.help} text={text.off} />
           </div>
           {/* Mouse and touch keep the field neutral; the caret shows focus. Tab shows the ring. */}
-          <label className="ml-auto inline-flex h-7 cursor-text items-baseline gap-1 self-center rounded border border-transparent bg-muted px-2 leading-[26px] group-data-[input=keyboard]/settings:focus-within:border-ring has-[[aria-invalid=true]]:border-destructive!">
+          <label className="ml-auto inline-flex h-7 cursor-text items-baseline gap-1 self-center rounded border border-transparent bg-muted px-2 leading-[26px] focus-within:border-ring group-data-[pointer]/settings:focus-within:border-transparent has-[[aria-invalid=true]]:border-destructive!">
             <input id={`${id}-interval`} type="number" inputMode="numeric" min={0} max={maxIntervalSeconds} step={1} required
               value={interval} aria-label={text.intervalLabel} aria-invalid={invalid || undefined}
               aria-describedby={invalid ? `${id}-interval-error` : `${id}-interval-help`}
