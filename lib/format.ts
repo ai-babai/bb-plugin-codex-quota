@@ -32,11 +32,12 @@ function quotaFormat(locale: string, text: typeof english) {
   const full = new Intl.DateTimeFormat(locale, { dateStyle: "full", timeStyle: "short" });
   const monthDay = new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" });
   const fullDate = new Intl.DateTimeFormat(locale, { dateStyle: "medium" });
+  const time = new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" });
   return {
     text,
     formatExpiry(seconds: number) {
       const when = new Date(seconds * 1000);
-      return { date: (when.getFullYear() === new Date().getFullYear() ? monthDay : fullDate).format(when), time: clock.format(when) };
+      return { date: (when.getFullYear() === new Date().getFullYear() ? monthDay : fullDate).format(when), time: time.format(when) };
     },
     percent: new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }),
     formatDate: (value: string) => date.format(new Date(value)),
