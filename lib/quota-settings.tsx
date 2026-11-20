@@ -19,7 +19,7 @@ const copy = {
     invalid: `Enter a whole number from 0 to ${maxIntervalSeconds}.`,
   },
   ru: {
-    settings: "Настройки", back: "Назад", interval: "Обновлять каждые", show: "Показывать кольцо", intervalLabel: "Обновление, секунды", unit: "с", help: "Об автообновлении", off: "0 отключает автообновление",
+    settings: "Настройки", back: "Назад", interval: "Обновлять раз в", show: "Показывать кольцо", intervalLabel: "Обновление, секунды", unit: "с", help: "Об автообновлении", off: "0 отключает автообновление",
     chat: "В чате", sidebar: "В боковой панели", save: "Сохранить", retry: "Повторить",
     saving: "Сохранение…", saved: "Сохранено", failed: "Не удалось сохранить. Попробуйте ещё раз.", unavailable: "Настройки недоступны",
     invalid: `Введите целое число от 0 до ${maxIntervalSeconds}.`,
@@ -105,7 +105,7 @@ type SaveState = "idle" | "saving" | "saved" | "failed";
 function SaveButton({ status, dirty, text }: { status: SaveState; dirty: boolean; text: typeof copy.en }) {
   const label = { idle: text.save, saving: text.saving, saved: text.saved, failed: text.retry }[status];
   return <button type="submit" data-state={status} disabled={status === "saving" || !dirty}
-    className={`inline-flex min-h-6 items-center justify-center gap-1 rounded border px-2 font-medium ${focusClass} ${!dirty && status === "idle" ? "invisible" : ""} ${dirty
+    className={`inline-flex min-h-6 items-center justify-center gap-1 ml-auto rounded border px-2 font-medium ${focusClass} ${!dirty && status === "idle" ? "invisible" : ""} ${dirty
       ? "border-teal-600/60 bg-teal-600/10 text-teal-700 hover:bg-teal-600/20 active:bg-teal-600/30 active:shadow-inner dark:border-teal-400/60 dark:text-teal-400"
       : "border-transparent text-muted-foreground"}`}>
     {status === "saved" && <Icon name="Check" aria-hidden="true" className="size-3 text-teal-600 dark:text-teal-400" />}
@@ -176,13 +176,13 @@ function QuotaSettingsForm({ initial, language, surface, backButton }: {
   }
 
   return <form aria-label={text.settings} className="grid gap-2 text-xs leading-4" noValidate onSubmit={event => { void save(event); }} lang={locale}>
-    <div className="flex items-center justify-between gap-2">
+    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
       {backButton}
       <SaveButton status={status} dirty={dirty} text={text} />
     </div>
     <fieldset disabled={status === "saving"} className="grid min-w-0 gap-2 disabled:opacity-60">
       <div className="grid gap-1">
-        <div className="flex min-h-7 flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1">
+        <div className="flex min-h-7 flex-wrap items-center justify-between gap-x-2 gap-y-1 px-1">
           <div className="flex min-w-0 items-center">
             <label htmlFor={`${id}-interval`}>{text.interval}</label>
             <IntervalHelp id={`${id}-interval-help`} label={text.help} text={text.off} />
